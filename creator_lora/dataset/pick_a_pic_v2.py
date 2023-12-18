@@ -3,6 +3,7 @@ import pandas as pd
 from PIL import Image
 import io
 from typing import List
+from fastparquet import write
 
 class PickAPicV2Subset:
     """
@@ -50,3 +51,7 @@ class PickAPicV2Subset:
         self.pandas_dataframe = pd.concat(
             [self.pandas_dataframe, dataset.pandas_dataframe]
         )
+
+    def save(self, parquet_filename: str, append = False):
+        # https://stackoverflow.com/a/73775084
+        write(parquet_filename, self.pandas_dataframe, append=append)
