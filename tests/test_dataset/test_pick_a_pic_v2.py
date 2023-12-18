@@ -13,12 +13,9 @@ parquet_urls = [
     },
 ]
 
-parquet_filename = "test.parquet"
-parquet_filename_2 = "test_2.parquet"
-
 def run_cleanup():
-    os.system(f"rm {parquet_filename}")
-    os.system(f"rm {parquet_filename_2}")
+    for data in parquet_urls:
+        os.system(f"rm {data['filename']}")
 
 @pytest.mark.parametrize("url", parquet_urls)
 def test_download(url: str):
