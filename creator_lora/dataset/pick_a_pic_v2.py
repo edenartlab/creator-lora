@@ -49,6 +49,16 @@ class PickAPicV2Subset:
             "user_id": row.user_id
         }
 
+    def get_all_data_for_a_single_user(self, user_id: int) ->List[dict]:
+
+        # Get the indices where the values are True
+        bool_mask = (self.pandas_dataframe.user_id == user_id).values
+        indices = np.where(bool_mask)[0]
+        assert len(indices) > 0, f"Found zero items for user_id: {user_id}, Are you sure you're providing the correct user_id?"
+        return [
+            self.__getitem__(idx) for idx in indices
+        ]
+
     def __len__(self):
         return self.pandas_dataframe.shape[0]
 
