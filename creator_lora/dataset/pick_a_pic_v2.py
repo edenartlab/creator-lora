@@ -8,6 +8,8 @@ import numpy as np
 from .clip_embeddings import CLIPEmbeddingsDataset
 import torch
 from collections import Counter
+from tqdm import tqdm
+
 
 class Constants:
     max_sequence_length: int = 768
@@ -104,6 +106,43 @@ class PickAPicV2Subset:
         write(parquet_filename, self.pandas_dataframe, append=append)
 
 
+def save_all_unique_images_from_pick_a_pic_v2_subset(
+    pick_a_pic_v2_subset: PickAPicV2Subset, output_folder: str, skip_if_exists: bool
+):
+    image_0_uids = np.unique(pick_a_pic_v2_subset.pandas_dataframe.image_0_uid.values)
+    image_1_uids = np.unique(pick_a_pic_v2_subset.pandas_dataframe.image_1_uid.values)
+
+    uids = []
+    filenames = []
+    for uid in tqdm(image_0_uids, desc="saving pil images [image_0]"):
+        if uid not in uids:
+            filename = os.path.join(output_folder, f"{uid}.jpg")
+            filenames.append(filename)
+            if os.path.exists(filename) and skip_if_exists:
+                uids.append(uid)
+                continue
+            else:
+                pick_a_pic_v2_subset.get_image_from_image_0_uid(image_0_uid=uid).save(
+                    filename
+                )
+            uids.append(uid)
+
+    for uid in tqdm(image_1_uids, desc="saving pil images [image_1]"):
+        if uid not in uids:
+            filename = os.path.join(output_folder, f"{uid}.jpg")
+            filenames.append(filename)
+            if os.path.exists(filename) and skip_if_exists:
+                uids.append(uid)
+                continue
+            else:
+                pick_a_pic_v2_subset.get_image_from_image_1_uid(image_1_uid=uid).save(
+                    filename
+                )
+            uids.append(uid)
+
+    return filenames, uids
+
+
 class UserContextDataset:
     def __init__(self, pick_a_pic_v2_subset: PickAPicV2Subset):
         self.pick_a_pic_v2_subset = pick_a_pic_v2_subset
@@ -198,35 +237,34 @@ class UserContextCLIPEmbeddingsDataset:
         """
         to be used as a collate_fn for a dataloader on top of UserContextCLIPEmbeddingsDataset
         """
-        max_sequence_length = max([b['sequence_length'] for b in batch])
+        max_sequence_length = max([b["sequence_length"] for b in batch])
         """
         apply padding
         """
         for data in batch:
             if data["image_embeddings"].shape[0] < max_sequence_length:
-                num_pad_tokens = (
-                    max_sequence_length - data["image_embeddings"].shape[0]
-                )
+                num_pad_tokens = max_sequence_length - data["image_embeddings"].shape[0]
                 data["image_embeddings"] = torch.cat(
                     [
                         data["image_embeddings"],
-                        torch.zeros(num_pad_tokens, data["image_embeddings"].shape[1])
+                        torch.zeros(num_pad_tokens, data["image_embeddings"].shape[1]),
                     ],
                     dim=0,
                 )
                 ## set label to 2 for pad token indices
                 data["labels"] = torch.cat(
-                    [
-                        data["labels"],
-                        torch.zeros(num_pad_tokens) + 2
-                    ],
+                    [data["labels"], torch.zeros(num_pad_tokens) + 2],
                     dim=0,
                 )
             data["image_embeddings"] = data["image_embeddings"].unsqueeze(0)
-            data["labels"] =  data["labels"].unsqueeze(0).long()
+            data["labels"] = data["labels"].unsqueeze(0).long()
         return {
-            "image_embeddings": torch.cat([data["image_embeddings"] for data in batch], dim = 0)[:, :Constants.max_sequence_length, :],
-            "labels": torch.cat([data["labels"] for data in batch])[:, :Constants.max_sequence_length],
-            "sequence_lengths": [b['sequence_length'] for b in batch],
-            "user_ids": [b['user_id'] for b in batch]
+            "image_embeddings": torch.cat(
+                [data["image_embeddings"] for data in batch], dim=0
+            )[:, : Constants.max_sequence_length, :],
+            "labels": torch.cat([data["labels"] for data in batch])[
+                :, : Constants.max_sequence_length
+            ],
+            "sequence_lengths": [b["sequence_length"] for b in batch],
+            "user_ids": [b["user_id"] for b in batch],
         }
