@@ -216,11 +216,11 @@ class UserContextCLIPEmbeddingsDataset:
                     ],
                     dim=0,
                 )
-                ## set label to -1 for pad token indices
+                ## set label to 2 for pad token indices
                 data["labels"] = torch.cat(
                     [
                         data["labels"],
-                        torch.zeros(num_pad_tokens) - 1
+                        torch.zeros(num_pad_tokens) + 2
                     ],
                     dim=0,
                 )
