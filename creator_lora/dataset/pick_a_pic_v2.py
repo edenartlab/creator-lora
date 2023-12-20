@@ -7,6 +7,8 @@ from fastparquet import write
 import numpy as np
 from .clip_embeddings import CLIPEmbeddingsDataset
 import torch
+from collections import Counter
+
 
 class PickAPicV2Subset:
     """
@@ -33,6 +35,20 @@ class PickAPicV2Subset:
         self.pandas_dataframe = self.pandas_dataframe[
             self.pandas_dataframe.image_1_uid.isin(image_1_uids)
         ]
+
+    def get_image_from_image_0_uid(self, image_0_uid: str):
+        row = self.pandas_dataframe[
+            self.pandas_dataframe.image_0_uid == image_0_uid
+        ].iloc[0]
+
+        return Image.open(io.BytesIO(row.jpg_0))
+
+    def get_image_from_image_1_uid(self, image_1_uid: str):
+        row = self.pandas_dataframe[
+            self.pandas_dataframe.image_1_uid == image_1_uid
+        ].iloc[0]
+
+        return Image.open(io.BytesIO(row.jpg_1))
 
     @classmethod
     def from_url(cls, url: str, parquet_filename: str, force_redownload=False):
@@ -104,56 +120,116 @@ class UserContextDataset:
 
         images = []
         labels = []
+        image_uids = []
         pick_a_pic_v2_subset_dataset_indices = []
 
         for item in single_user_data:
-            images.append(item["image_0"])
-            labels.append(item["label_0"])
-            images.append(item["image_1"])
-            labels.append(item["label_1"])
+            """
+            for now, we take only the first instance of the image if it's repeated
+            """
+
+            if item["image_0_uid"] not in image_uids:
+                images.append(item["image_0"])
+                labels.append(item["label_0"])
+                image_uids.append(item["image_0_uid"])
+
+            if item["image_1_uid"] not in image_uids:
+                images.append(item["image_1"])
+                labels.append(item["label_1"])
+                image_uids.append(item["image_1_uid"])
 
             pick_a_pic_v2_subset_dataset_indices.append(item["dataset_index"])
+
+        num_occurrences_of_image_uids = dict(Counter(image_uids))
+        for num_occ in num_occurrences_of_image_uids.values():
+            assert (
+                num_occ < 2
+            ), "Images should not be repeated for a single user in a single context"
+
         data = {
+            "sequence_length": len(images),
             "images": images,
             "labels": labels,
             "user_id": self.user_ids[idx],
-            "pick_a_pic_v2_subset_dataset_indices": pick_a_pic_v2_subset_dataset_indices,
+            "image_uids": image_uids,
+            # "pick_a_pic_v2_subset_dataset_indices": pick_a_pic_v2_subset_dataset_indices,
         }
         return data
 
     def __len__(self):
         return len(self.user_ids)
 
+
 class USerContextCLIPEmbeddingsDataset:
     def __init__(
         self,
         user_context_dataset: UserContextDataset,
-        clip_embeddings_image_0: CLIPEmbeddingsDataset,
-        clip_embeddings_image_1: CLIPEmbeddingsDataset,
+        clip_embeddings: CLIPEmbeddingsDataset,
     ) -> None:
-        assert len(user_context_dataset.pick_a_pic_v2_subset) == len(
-            clip_embeddings_image_0
-        )
-        assert len(user_context_dataset.pick_a_pic_v2_subset) == len(
-            clip_embeddings_image_1
-        )
-
-        self.clip_embeddings_image_0 = clip_embeddings_image_0
-        self.clip_embeddings_image_1 = clip_embeddings_image_1
+        self.clip_embeddings = clip_embeddings
         self.user_context_dataset = user_context_dataset
+        self.max_sequence_length = self.find_max_sequence_length()
+
+    def find_max_sequence_length(self):
+        sequence_lengths = [len(x["image_uids"]) for x in self.user_context_dataset]
+        return max(sequence_lengths)
 
     def __getitem__(self, idx) -> dict:
         data = self.user_context_dataset[idx]
-
+        data["labels"] = torch.tensor(data["labels"])
         image_embeddings = []
-        for idx in data["pick_a_pic_v2_subset_dataset_indices"]:
-            image_embeddings.append(self.clip_embeddings_image_0[idx])
-            image_embeddings.append(self.clip_embeddings_image_1[idx])
+        for uid in data["image_uids"]:
+            image_embeddings.append(self.clip_embeddings[uid])
 
+        ## shape: 1, seq, emb
         data["image_embeddings"] = torch.cat(image_embeddings, dim=0)
 
         assert data["image_embeddings"].shape[0] == len(data["labels"])
+
+        del data["image_uids"]
+        del data["images"]
+        # del data["labels"]
+
         return data
 
     def __len__(self):
         return len(self.user_context_dataset)
+
+    @staticmethod
+    def collate_fn_with_padding(batch):
+        """
+        to be used as a collate_fn for a dataloader on top of USerContextCLIPEmbeddingsDataset
+        """
+        max_sequence_length = max([b['sequence_length'] for b in batch])
+        """
+        apply padding
+        """
+        for data in batch:
+            if data["image_embeddings"].shape[0] < max_sequence_length:
+                num_pad_tokens = (
+                    max_sequence_length - data["image_embeddings"].shape[0]
+                )
+                data["image_embeddings"] = torch.cat(
+                    [
+                        data["image_embeddings"],
+                        torch.zeros(num_pad_tokens, data["image_embeddings"].shape[1])
+                    ],
+                    dim=0,
+                )
+                ## set label to -1 for pad token indices
+                data["labels"] = torch.cat(
+                    [
+                        data["labels"],
+                        torch.zeros(num_pad_tokens) - 1
+                    ],
+                    dim=0,
+                )
+            data["image_embeddings"] = data["image_embeddings"].unsqueeze(0)
+            data["labels"] =  data["labels"].unsqueeze(0)
+
+        return {
+            "image_embeddings": torch.cat([data["image_embeddings"] for data in batch]),
+            "labels": torch.cat([data["labels"] for data in batch]),
+            "sequence_lengths": [b['sequence_length'] for b in batch],
+            "user_ids": [b['user_id'] for b in batch]
+        }
