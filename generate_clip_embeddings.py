@@ -2,12 +2,20 @@ from creator_lora.image_encoders.clip import CLIPImageEncoder
 from creator_lora.dataset import (
     PickAPicV2Subset,
     UserContextDataset,
+    save_all_unique_images_from_pick_a_pic_v2_subset
 )
 import os
 from creator_lora.utils import create_new_clean_folder
 from tqdm import tqdm
+import argparse
 
 device = "cuda:0"
+
+parser = argparse.ArgumentParser(description='Example script with integer arguments')
+
+parser.add_argument('--start-index', type=int, help='start index', default = 0, required = False)
+parser.add_argument('--end-index', type=int, help='end index', default = None, required = False)
+args = parser.parse_args()
 
 for i in tqdm(range(0, 35), desc = "Loading data"):
     parquet_filename = os.path.join("downloaded_dataset", f"{i}.pth")
@@ -24,42 +32,6 @@ for i in tqdm(range(0, 35), desc = "Loading data"):
 
 user_context_dataset = UserContextDataset(pick_a_pic_v2_subset=dataset)
 
-import numpy as np
-
-def save_all_unique_images_from_pick_a_pic_v2_subset(pick_a_pic_v2_subset: PickAPicV2Subset, output_folder: str, skip_if_exists: bool):
-    image_0_uids = np.unique(pick_a_pic_v2_subset.pandas_dataframe.image_0_uid.values)
-    image_1_uids = np.unique(pick_a_pic_v2_subset.pandas_dataframe.image_1_uid.values)
-
-    uids = []
-    filenames = []
-    for uid in tqdm(image_0_uids, desc = "saving pil images [image_0]"):
-        
-        if uid not in uids:
-            filename = os.path.join(output_folder, f"{uid}.jpg")
-            filenames.append(filename)
-            if os.path.exists(filename) and skip_if_exists:
-                continue
-            else:
-                dataset.get_image_from_image_0_uid(image_0_uid=uid).save(
-                    filename
-                )
-            uids.append(uid)
-
-    for uid in tqdm(image_1_uids, desc = "saving pil images [image_1]"):
-        
-        if uid not in uids:
-            filename = os.path.join(output_folder, f"{uid}.jpg")
-            filenames.append(filename)
-            if os.path.exists(filename) and skip_if_exists:
-                continue
-            else:
-                dataset.get_image_from_image_1_uid(image_1_uid=uid).save(
-                    filename
-                )
-            uids.append(uid)
-
-    return filenames, uids
-
 image_paths, uids = save_all_unique_images_from_pick_a_pic_v2_subset(
     pick_a_pic_v2_subset=dataset,
     output_folder="pick_a_pic_images",
@@ -75,7 +47,10 @@ clip_embeddings_filenames = [
     for count in range(len(image_paths))
 ]
 
-create_new_clean_folder(image_embeddings_folder)
+# create_new_clean_folder(image_embeddings_folder)
+
+image_paths = image_paths[args.start_index:args.end_index]
+clip_embeddings_filenames = clip_embeddings_filenames[args.start_index:args.end_index]
 
 image_encoder.encode_and_save_batchwise(
     image_paths=image_paths,
