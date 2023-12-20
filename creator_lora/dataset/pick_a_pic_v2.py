@@ -225,7 +225,7 @@ class UserContextCLIPEmbeddingsDataset:
                     dim=0,
                 )
             data["image_embeddings"] = data["image_embeddings"].unsqueeze(0)
-            data["labels"] =  data["labels"].unsqueeze(0)
+            data["labels"] =  data["labels"].unsqueeze(0).long()
 
         return {
             "image_embeddings": torch.cat([data["image_embeddings"] for data in batch]),
