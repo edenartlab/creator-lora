@@ -20,7 +20,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torchtyping import TensorType
 from mingpt.utils import CfgNode as CN
-
+from einops import rearrange
 
 class NewGELU(nn.Module):
     """
@@ -160,8 +160,6 @@ class GPT(nn.Module):
 
         self.transformer = nn.ModuleDict(
             dict(
-                wte=nn.Embedding(config.vocab_size, config.n_embd),
-                wpe=nn.Embedding(config.block_size, config.n_embd),
                 drop=nn.Dropout(config.embd_pdrop),
                 h=nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
                 ln_f=nn.LayerNorm(config.n_embd),
@@ -275,13 +273,11 @@ class GPT(nn.Module):
 
         image_seq_idx = 0
         labels_seq_idx = 0
-        indices_of_prediction_tokens_in_logits = []
         
         for sequence_idx in range(total_sequence_length):
             if sequence_idx % 2 == 0:
                 x.append(image_embeddings[:, image_seq_idx, :].unsqueeze(1))
                 image_seq_idx += 1
-                indices_of_prediction_tokens_in_logits.append(sequence_idx)
             else:
                 # raise AssertionError(self.action_token_embeddings(torch.tensor([0, 1, 0])))
                 x.append(
@@ -303,6 +299,60 @@ class GPT(nn.Module):
         logits = self.lm_head(x)
 
         return logits
+
+    def get_flattened_logits_and_padded_labels_and_loss_mask(self, logits, sequence_lengths, labels):
+
+        """
+        shapes:
+        logits: batch, seq, vocab
+        indices_of_prediction_tokens_in_logits: seq
+        labels: batch, seq
+        """
+        batch_size, seq, vocab =  logits.shape
+
+        flattened_logits = rearrange(logits, "batch seq vocab -> (batch seq) vocab")
+
+        loss_mask = torch.zeros(batch_size, seq)
+
+        for seq_len in sequence_lengths:
+            loss_mask[:seq_len] = 1.
+
+        for sequence_idx in range(seq):
+            if sequence_idx % 2 == 0:
+                loss_mask[:, sequence_idx] = 1.
+            else:
+                loss_mask[:, sequence_idx] = 0.
+
+        labels = rearrange(labels, "batch seq  -> (batch seq)")
+
+        assert labels.shape[0] * 2 == flattened_logits.shape[0]
+
+        padded_labels = torch.zeros(labels.shape[0]*2, dtype = torch.long).to(flattened_logits.device)
+        padded_labels[
+            [
+                i for i in range(0, labels.shape[0] * 2, 2) if i % 2 == 0
+            ]
+        ] = 1
+        return flattened_logits, padded_labels, loss_mask
+    
+    def get_loss(self, logits, sequence_lengths, labels):
+        flattened_logits, padded_labels, loss_mask = self.get_flattened_logits_and_padded_labels_and_loss_mask(logits=logits, sequence_lengths=sequence_lengths, labels=labels)
+
+        loss = F.cross_entropy(input = flattened_logits, target = padded_labels, reduce=None)
+        loss = loss.reshape(-1) * loss_mask.reshape(-1).to(loss.device)
+        return loss.mean()
+
+    def get_accuracy(self, logits, sequence_lengths, labels):
+        flattened_logits, padded_labels, loss_mask = self.get_flattened_logits_and_padded_labels_and_loss_mask(logits=logits, sequence_lengths=sequence_lengths, labels=labels) 
+
+        predicted_labels = torch.argmax(flattened_logits, dim=1)
+
+        correct_predictions = (predicted_labels == padded_labels).float()
+        correct_predictions = correct_predictions * loss_mask.view(-1).to(correct_predictions.device)
+
+        accuracy = torch.sum(correct_predictions) / torch.sum(loss_mask)
+
+        return accuracy.item()
 
     @torch.no_grad()
     def generate(
