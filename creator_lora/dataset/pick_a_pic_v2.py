@@ -9,6 +9,9 @@ from .clip_embeddings import CLIPEmbeddingsDataset
 import torch
 from collections import Counter
 
+class Constants:
+    max_sequence_length: int = 768
+
 
 class PickAPicV2Subset:
     """
@@ -168,11 +171,6 @@ class UserContextCLIPEmbeddingsDataset:
     ) -> None:
         self.clip_embeddings = clip_embeddings
         self.user_context_dataset = user_context_dataset
-        self.max_sequence_length = self.find_max_sequence_length()
-
-    def find_max_sequence_length(self):
-        sequence_lengths = [len(x["image_uids"]) for x in self.user_context_dataset]
-        return max(sequence_lengths)
 
     def __getitem__(self, idx) -> dict:
         data = self.user_context_dataset[idx]
@@ -226,10 +224,9 @@ class UserContextCLIPEmbeddingsDataset:
                 )
             data["image_embeddings"] = data["image_embeddings"].unsqueeze(0)
             data["labels"] =  data["labels"].unsqueeze(0).long()
-
         return {
-            "image_embeddings": torch.cat([data["image_embeddings"] for data in batch]),
-            "labels": torch.cat([data["labels"] for data in batch]),
+            "image_embeddings": torch.cat([data["image_embeddings"] for data in batch], dim = 0)[:, :Constants.max_sequence_length, :],
+            "labels": torch.cat([data["labels"] for data in batch])[:, :Constants.max_sequence_length],
             "sequence_lengths": [b['sequence_length'] for b in batch],
             "user_ids": [b['user_id'] for b in batch]
         }
