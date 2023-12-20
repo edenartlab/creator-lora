@@ -5,7 +5,8 @@ import io
 from typing import List
 from fastparquet import write
 import numpy as np
-
+from .clip_embeddings import CLIPEmbeddingsDataset
+import torch
 
 class PickAPicV2Subset:
     """
@@ -108,7 +109,6 @@ class UserContextDataset:
         for item in single_user_data:
             images.append(item["image_0"])
             labels.append(item["label_0"])
-
             images.append(item["image_1"])
             labels.append(item["label_1"])
 
@@ -123,3 +123,37 @@ class UserContextDataset:
 
     def __len__(self):
         return len(self.user_ids)
+
+class USerContextCLIPEmbeddingsDataset:
+    def __init__(
+        self,
+        user_context_dataset: UserContextDataset,
+        clip_embeddings_image_0: CLIPEmbeddingsDataset,
+        clip_embeddings_image_1: CLIPEmbeddingsDataset,
+    ) -> None:
+        assert len(user_context_dataset.pick_a_pic_v2_subset) == len(
+            clip_embeddings_image_0
+        )
+        assert len(user_context_dataset.pick_a_pic_v2_subset) == len(
+            clip_embeddings_image_1
+        )
+
+        self.clip_embeddings_image_0 = clip_embeddings_image_0
+        self.clip_embeddings_image_1 = clip_embeddings_image_1
+        self.user_context_dataset = user_context_dataset
+
+    def __getitem__(self, idx) -> dict:
+        data = self.user_context_dataset[idx]
+
+        image_embeddings = []
+        for idx in data["pick_a_pic_v2_subset_dataset_indices"]:
+            image_embeddings.append(self.clip_embeddings_image_0[idx])
+            image_embeddings.append(self.clip_embeddings_image_1[idx])
+
+        data["image_embeddings"] = torch.cat(image_embeddings, dim=0)
+
+        assert data["image_embeddings"].shape[0] == len(data["labels"])
+        return data
+
+    def __len__(self):
+        return len(self.user_context_dataset)
