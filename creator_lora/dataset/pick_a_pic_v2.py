@@ -17,6 +17,12 @@ class PickAPicV2Subset:
 
     def filter_by_user_ids(self, user_ids: List[int]):
         self.pandas_dataframe = self.pandas_dataframe[self.pandas_dataframe.user_id.isin(user_ids)]
+
+    def filter_by_image_0_uids(self, image_0_uids: List[str]):
+        self.pandas_dataframe = self.pandas_dataframe[self.pandas_dataframe.image_0_uid.isin(image_0_uids)]
+
+    def filter_by_image_1_uids(self, image_1_uids: List[str]):
+        self.pandas_dataframe = self.pandas_dataframe[self.pandas_dataframe.image_1_uid.isin(image_1_uids)]
     
     @classmethod
     def from_url(cls, url: str, parquet_filename: str, force_redownload = False):
