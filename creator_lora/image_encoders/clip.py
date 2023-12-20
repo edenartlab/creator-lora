@@ -61,3 +61,22 @@ class CLIPImageEncoder:
 
         all_embeddings = torch.cat(all_embeddings, dim=0)
         return all_embeddings
+
+    def encode_and_save_batchwise(
+        self, pil_images, output_filenames: List[str], batch_size: int, progress=True
+    ):
+        chunked_pil_images = chunked_pil_images = chunk_list(
+            list_to_be_chunked=pil_images, chunk_size=batch_size
+        )
+
+        count = 0
+        for pil_images in tqdm(
+            chunked_pil_images, disable=not (progress), total=len(chunked_pil_images), desc = "Saving CLIP embeddings"
+        ):
+            all_embeddings = self.encode(
+                pil_images=pil_images, batch_size=batch_size, progress=False
+            )
+
+            for idx in range(all_embeddings.shape[0]):
+                torch.save(all_embeddings[idx, :].unsqueeze(0), f = output_filenames[count])
+                count += 1
