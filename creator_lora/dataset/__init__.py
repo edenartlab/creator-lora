@@ -1,2 +1,2 @@
-from .pick_a_pic_v2 import PickAPicV2Subset
+from .pick_a_pic_v2 import PickAPicV2Subset, UserContextDataset, USerContextCLIPEmbeddingsDataset
 from .clip_embeddings import CLIPEmbeddingsDataset
