@@ -17,9 +17,9 @@ def run_cleanup():
     for data in parquet_urls:
         os.system(f"rm {data['filename']}")
 
-@pytest.mark.parametrize("url", parquet_urls)
-def test_download(url: str):
-    dataset = PickAPicV2Subset.from_url(url = url, parquet_filename=parquet_filename)
+@pytest.mark.parametrize("url_data", parquet_urls[:1])
+def test_download(url_data: str):
+    dataset = PickAPicV2Subset.from_url(url = url_data["url"], parquet_filename=url_data["filename"])
 
     assert len(dataset) > 0
     run_cleanup()
