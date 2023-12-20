@@ -66,33 +66,34 @@ class CLIPImageEncoder:
 
     def encode_and_save_batchwise(
         self,
-        pil_images,
+        image_paths,
         output_filenames: List[str],
         batch_size: int,
         progress=True,
         skip_if_exists=True,
     ):
-        chunked_pil_images = chunked_pil_images = chunk_list(
-            list_to_be_chunked=pil_images, chunk_size=batch_size
+        chunked_image_paths = chunked_pil_images = chunk_list(
+            list_to_be_chunked=image_paths, chunk_size=batch_size
         )
 
         count = 0
-        for pil_images in tqdm(
-            chunked_pil_images,
+        for image_paths in tqdm(
+            chunked_image_paths,
             disable=not (progress),
             total=len(chunked_pil_images),
             desc="Saving CLIP embeddings",
         ):
             ## assume all images exist if first and last images in batch exist
             if (
-                os.path.exists(output_filenames[0])
-                and os.path.exists(output_filenames[-1])
+                os.path.exists(output_filenames[count + 0])
+                and os.path.exists(output_filenames[count + len(image_paths) - 1])
                 and skip_if_exists
             ):
                 print(f"Skipping batch...")
-                count += len(pil_images)
+                count += len(image_paths)
                 continue
-
+            
+            pil_images = [Image.open(path) for path in image_paths]
             all_embeddings = self.encode(
                 pil_images=pil_images, batch_size=batch_size, progress=False
             )
