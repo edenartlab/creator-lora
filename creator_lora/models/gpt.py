@@ -340,6 +340,13 @@ class GPT(nn.Module):
 
         loss = F.cross_entropy(input = flattened_logits, target = padded_labels, reduce=None)
         loss = loss.reshape(-1) * loss_mask.reshape(-1).to(loss.device)
+        
+        fraction_of_ones = padded_labels[padded_labels == 1].sum() / padded_labels.reshape(-1).shape[0]
+
+        label_balancer_mask = torch.zeros_like(loss)
+        label_balancer_mask[padded_labels.reshape(-1) == 1] = 1-fraction_of_ones
+        label_balancer_mask[padded_labels.reshape(-1) != 1] = fraction_of_ones
+        loss = loss * label_balancer_mask
         return loss.mean()
 
     def get_accuracy(self, logits, sequence_lengths, labels):
