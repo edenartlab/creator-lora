@@ -40,6 +40,7 @@ class PickAPicV2Subset:
         row = self.pandas_dataframe.iloc[idx]
 
         return {
+            "dataset_index": idx,
             "image_0_uid": row.image_0_uid,
             "image_1_uid": row.image_1_uid,
             "image_0": Image.open(io.BytesIO(row.jpg_0)),
