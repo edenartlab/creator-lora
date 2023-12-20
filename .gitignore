@@ -1,3 +1,5 @@
 __pycache__/
 *.parquet
 creator_lora.egg-info/
+clip_embeddings/
+dataset/
