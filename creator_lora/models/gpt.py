@@ -21,6 +21,7 @@ from torch.nn import functional as F
 from torchtyping import TensorType
 from mingpt.utils import CfgNode as CN
 
+
 class NewGELU(nn.Module):
     """
     Implementation of the GELU activation function currently in Google BERT repo (identical to OpenAI GPT).
@@ -152,6 +153,10 @@ class GPT(nn.Module):
         assert config.block_size is not None
         self.block_size = config.block_size
 
+        ## vocab + 1 because pad
+        self.action_token_embeddings = nn.Embedding(
+            num_embeddings=config.vocab_size + 1, embedding_dim=config.n_embd
+        )
 
         self.transformer = nn.ModuleDict(
             dict(
@@ -255,14 +260,45 @@ class GPT(nn.Module):
 
         """
         device = image_embeddings.device
-        batch_size, seq = image_embeddings.size()
+        batch_size, seq = labels.size()
         assert (
             seq <= self.block_size
         ), f"Cannot forward sequence of length {seq}, block size is only {self.block_size}"
 
-        x = image_embeddings
+        x = []
+
+        assert (image_embeddings.shape[1] == labels.shape[1]) or (
+            image_embeddings.shape[1] - 1 == labels.shape[1]
+        )
+
+        total_sequence_length = image_embeddings.shape[1] + labels.shape[1]
+
+        image_seq_idx = 0
+        labels_seq_idx = 0
+        indices_of_prediction_tokens_in_logits = []
+        
+        for sequence_idx in range(total_sequence_length):
+            if sequence_idx % 2 == 0:
+                x.append(image_embeddings[:, image_seq_idx, :].unsqueeze(1))
+                image_seq_idx += 1
+                indices_of_prediction_tokens_in_logits.append(sequence_idx)
+            else:
+                # raise AssertionError(self.action_token_embeddings(torch.tensor([0, 1, 0])))
+                x.append(
+                    self.action_token_embeddings.forward(
+                        labels[:, labels_seq_idx].reshape(-1, 1)
+                    )
+                )
+                labels_seq_idx += 1
+                
+        x = torch.cat(x, dim = 1)
+
+        # validate shape
+        assert x.shape[0] ==  batch_size
+        assert x.shape[1] == image_embeddings.shape[1] + labels.shape[1]
+
         for block in self.transformer.h:
-            x = block(image_embeddings)
+            x = block(x)
         x = self.transformer.ln_f(x)
         logits = self.lm_head(x)
 
