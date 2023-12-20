@@ -160,7 +160,7 @@ class UserContextDataset:
         return len(self.user_ids)
 
 
-class USerContextCLIPEmbeddingsDataset:
+class UserContextCLIPEmbeddingsDataset:
     def __init__(
         self,
         user_context_dataset: UserContextDataset,
@@ -198,7 +198,7 @@ class USerContextCLIPEmbeddingsDataset:
     @staticmethod
     def collate_fn_with_padding(batch):
         """
-        to be used as a collate_fn for a dataloader on top of USerContextCLIPEmbeddingsDataset
+        to be used as a collate_fn for a dataloader on top of UserContextCLIPEmbeddingsDataset
         """
         max_sequence_length = max([b['sequence_length'] for b in batch])
         """
