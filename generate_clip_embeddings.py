@@ -8,18 +8,20 @@ import os
 from creator_lora.utils import create_new_clean_folder
 from tqdm import tqdm
 import argparse
+from creator_lora.utils.json_stuff import save_as_json
 
 device = "cuda:0"
 
 parser = argparse.ArgumentParser(description='Example script with integer arguments')
 
 parser.add_argument('--start-index', type=int, help='start index', default = 0, required = False)
-parser.add_argument('--end-index', type=int, help='end index', default = None, required = False)
+parser.add_argument('--end-index', type=int, help='end index', default = 55, required = False)
 args = parser.parse_args()
 
-for i in tqdm(range(0, 35), desc = "Loading data"):
+count = 0
+for i in tqdm(range(args.start_index, args.end_index), desc = "Loading data"):
     parquet_filename = os.path.join("downloaded_dataset", f"{i}.pth")
-    if i == 0:
+    if count == 0:
         dataset = PickAPicV2Subset(
             parquet_filename=parquet_filename,
         )
@@ -29,21 +31,14 @@ for i in tqdm(range(0, 35), desc = "Loading data"):
                 parquet_filename=parquet_filename,
             )
         )
+    count += 1
 
 user_context_dataset = UserContextDataset(pick_a_pic_v2_subset=dataset)
 
 image_paths, uids = save_all_unique_images_from_pick_a_pic_v2_subset(
     pick_a_pic_v2_subset=dataset,
     output_folder="pick_a_pic_images",
-    skip_if_exists=True
-)
-
-save_as_json(
-    {
-        "image_paths": image_paths,
-        "uids": uids
-    },
-    filename = "images_and_uids.json"
+    skip_if_exists=False
 )
 
 image_encoder = CLIPImageEncoder(name='ViT-B/32', device=device)
@@ -57,12 +52,16 @@ clip_embeddings_filenames = [
 
 # create_new_clean_folder(image_embeddings_folder)
 
-image_paths = image_paths[args.start_index:args.end_index]
-clip_embeddings_filenames = clip_embeddings_filenames[args.start_index:args.end_index]
-
 image_encoder.encode_and_save_batchwise(
     image_paths=image_paths,
     output_filenames=clip_embeddings_filenames,
     batch_size=256,
-    skip_if_exists=True
+    skip_if_exists=False
 )
+
+"""
+python3 generate_clip_embeddings.py --start-index 0 --end-index 13
+CUDA_VISIBLE_DEVICES=1 python3 generate_clip_embeddings.py --start-index 13 --end-index 26
+CUDA_VISIBLE_DEVICES=2 python3 generate_clip_embeddings.py --start-index 26 --end-index 39
+CUDA_VISIBLE_DEVICES=3 python3 generate_clip_embeddings.py --start-index 39 --end-index 55
+"""
