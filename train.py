@@ -32,27 +32,29 @@ image_embeddings_folder = "./clip_embeddings"
 full_dataset = UserContextCLIPEmbeddingsDataset(
     user_context_dataset=user_context_dataset,
     clip_embeddings=CLIPEmbeddingsDataset.from_folder(
-        folder=image_embeddings_folder
+        folder=image_embeddings_folder,
     ),
+    shuffle_sequence=True
 )
-train_test_split = 0.5
+train_test_split = 0.9
 num_train_samples = int(len(full_dataset) * train_test_split)
 train_dataset, validation_dataset = torch.utils.data.random_split(
     full_dataset, 
-    [num_train_samples, len(full_dataset)-num_train_samples]
+    [num_train_samples, len(full_dataset)-num_train_samples],
+    generator=torch.Generator().manual_seed(42)
 )
 
 
 train_dataloader = DataLoader(
     train_dataset,
-    batch_size=64,
+    batch_size=32,
     shuffle=True,
     collate_fn=UserContextCLIPEmbeddingsDataset.collate_fn_with_padding,
 )
 
 validation_dataloader = DataLoader(
     validation_dataset,
-    batch_size=64,
+    batch_size=32,
     shuffle=False,
     collate_fn=UserContextCLIPEmbeddingsDataset.collate_fn_with_padding,
 )
@@ -64,13 +66,14 @@ model_config.vocab_size = 2
 model_config.block_size = int(768 * 2)
 model_config.n_layer = 2
 model_config.n_embd = 512
-model_config.n_head = 2
+model_config.n_head = 4
 model = GPT(model_config)
 model.to(device)
 
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-6, weight_decay=1e-6)
 
 step_idx = 0
+best_val_acc = -torch.inf
 
 for epoch_idx in range(10):
     for batch in train_dataloader:
@@ -128,5 +131,10 @@ for epoch_idx in range(10):
     average_val_accuracy = total_val_accuracy / val_batches
 
     print(f"Epoch: {epoch_idx + 1} Validation Loss: {average_val_loss} Validation Accuracy: {average_val_accuracy}")
+
+    if average_val_accuracy > best_val_acc:
+        print(f"Saving model with acc: {average_val_accuracy}")
+        torch.save(model.state_dict(), "best_model.pth")
+        best_val_acc = average_val_accuracy
 
     model.train()  # Set the model back to training mode
