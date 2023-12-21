@@ -9,7 +9,7 @@ from .clip_embeddings import CLIPEmbeddingsDataset
 import torch
 from collections import Counter
 from tqdm import tqdm
-
+import random
 
 class Constants:
     max_sequence_length: int = 768
@@ -207,18 +207,24 @@ class UserContextCLIPEmbeddingsDataset:
         self,
         user_context_dataset: UserContextDataset,
         clip_embeddings: CLIPEmbeddingsDataset,
+        shuffle_sequence: bool = True
     ) -> None:
         self.clip_embeddings = clip_embeddings
         self.user_context_dataset = user_context_dataset
+        self.shuffle_sequence = shuffle_sequence
 
     def __getitem__(self, idx) -> dict:
         data = self.user_context_dataset[idx]
         data["labels"] = torch.tensor(data["labels"])
+        # set neutral labels to 1
+        data["labels"][data["labels"] == 0.5] = 1.
+        data["labels"] = data["labels"].long()
+        
         image_embeddings = []
         for uid in data["image_uids"]:
             image_embeddings.append(self.clip_embeddings[uid])
 
-        ## shape: 1, seq, emb
+        ## shape: seq, emb
         data["image_embeddings"] = torch.cat(image_embeddings, dim=0)
 
         assert data["image_embeddings"].shape[0] == len(data["labels"])
@@ -226,6 +232,12 @@ class UserContextCLIPEmbeddingsDataset:
         del data["image_uids"]
         del data["images"]
         # del data["labels"]
+
+        if self.shuffle_sequence:
+            shuffle_indices = [i for i in range(data["image_embeddings"].shape[0])]
+            random.shuffle(shuffle_indices)
+            data["image_embeddings"] = data["image_embeddings"][shuffle_indices, :]
+            data["labels"] = data["labels"][shuffle_indices]
 
         return data
 
