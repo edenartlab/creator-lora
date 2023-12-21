@@ -38,6 +38,14 @@ image_paths, uids = save_all_unique_images_from_pick_a_pic_v2_subset(
     skip_if_exists=True
 )
 
+save_as_json(
+    {
+        "image_paths": image_paths,
+        "uids": uids
+    },
+    filename = "images_and_uids.json"
+)
+
 image_encoder = CLIPImageEncoder(name='ViT-B/32', device=device)
 # ## TODO: encode images based on image uid and not dataset index
 

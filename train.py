@@ -33,11 +33,8 @@ for i in tqdm(range(0, 35), desc = "Loading data"):
 
 user_context_dataset = UserContextDataset(pick_a_pic_v2_subset=dataset)
 
-clip_embeddings_filenames, uids = save_all_unique_images_from_pick_a_pic_v2_subset(
-    pick_a_pic_v2_subset=dataset,
-    output_folder="pick_a_pic_images",
-    skip_if_exists=True
-)
+
+clip_embedding_image_filenames =  load_json("images_and_uids.json")["image_paths"]
 
 image_embeddings_folder = "./clip_embeddings"
 
