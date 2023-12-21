@@ -1,11 +1,21 @@
 import os
 from typing import List, Union
 import torch
+from ..utils.files_and_folders import get_filenames_in_a_folder
 
 class CLIPEmbeddingsDataset:
     def __init__(self, filenames: List[str], parent_folder = None):
         self.filenames = filenames
         self.parent_folder = parent_folder
+
+    @classmethod
+    def from_folder(cls, folder: str):
+        assert os.path.exists(folder)
+        filenames = get_filenames_in_a_folder(folder=folder)
+        return cls(
+            filenames=filenames,
+            parent_folder=folder
+        )
 
     def __getitem__(self, idx_or_uid: Union[List, str]):
 
