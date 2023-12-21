@@ -1,19 +1,14 @@
-from creator_lora.image_encoders.clip import CLIPImageEncoder
 from creator_lora.dataset import (
     PickAPicV2Subset,
     UserContextDataset,
     UserContextCLIPEmbeddingsDataset,
 )
 import os
-from creator_lora.utils import get_filenames_in_a_folder
 from creator_lora.dataset import CLIPEmbeddingsDataset
 from torch.utils.data import DataLoader
 from creator_lora.models.gpt import GPT
 import torch
-import numpy as np
-from creator_lora.dataset import save_all_unique_images_from_pick_a_pic_v2_subset
 from tqdm import tqdm
-from creator_lora.utils.json_stuff import load_json
 
 device = "cuda:0"
 
