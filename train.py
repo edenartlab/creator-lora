@@ -5,7 +5,7 @@ from creator_lora.dataset import (
     UserContextCLIPEmbeddingsDataset,
 )
 import os
-from creator_lora.utils import create_new_clean_folder
+from creator_lora.utils import get_filenames_in_a_folder
 from creator_lora.dataset import CLIPEmbeddingsDataset
 from torch.utils.data import DataLoader
 from creator_lora.models.gpt import GPT
@@ -13,12 +13,11 @@ import torch
 import numpy as np
 from creator_lora.dataset import save_all_unique_images_from_pick_a_pic_v2_subset
 from tqdm import tqdm
-
-torch.autograd.set_detect_anomaly(True)
+from creator_lora.utils.json_stuff import load_json
 
 device = "cuda:0"
 
-for i in tqdm(range(0, 35), desc = "Loading data"):
+for i in tqdm(range(0, 55), desc = "Loading data"):
     parquet_filename = os.path.join("downloaded_dataset", f"{i}.pth")
     if i == 0:
         dataset = PickAPicV2Subset(
@@ -33,18 +32,15 @@ for i in tqdm(range(0, 35), desc = "Loading data"):
 
 user_context_dataset = UserContextDataset(pick_a_pic_v2_subset=dataset)
 
-
-clip_embedding_image_filenames =  load_json("images_and_uids.json")["image_paths"]
-
 image_embeddings_folder = "./clip_embeddings"
 
 full_dataset = UserContextCLIPEmbeddingsDataset(
     user_context_dataset=user_context_dataset,
-    clip_embeddings=CLIPEmbeddingsDataset(
-        filenames=clip_embeddings_filenames, parent_folder=image_embeddings_folder
+    clip_embeddings=CLIPEmbeddingsDataset.from_folder(
+        folder=image_embeddings_folder
     ),
 )
-train_test_split = 0.1
+train_test_split = 0.5
 num_train_samples = int(len(full_dataset) * train_test_split)
 train_dataset, validation_dataset = torch.utils.data.random_split(
     full_dataset, 
@@ -54,14 +50,14 @@ train_dataset, validation_dataset = torch.utils.data.random_split(
 
 train_dataloader = DataLoader(
     train_dataset,
-    batch_size=32,
+    batch_size=64,
     shuffle=True,
     collate_fn=UserContextCLIPEmbeddingsDataset.collate_fn_with_padding,
 )
 
 validation_dataloader = DataLoader(
     validation_dataset,
-    batch_size=32,
+    batch_size=64,
     shuffle=False,
     collate_fn=UserContextCLIPEmbeddingsDataset.collate_fn_with_padding,
 )
@@ -73,7 +69,7 @@ model_config.vocab_size = 2
 model_config.block_size = int(768 * 2)
 model_config.n_layer = 2
 model_config.n_embd = 512
-model_config.n_head = 4
+model_config.n_head = 2
 model = GPT(model_config)
 model.to(device)
 
@@ -94,7 +90,7 @@ for epoch_idx in range(10):
             labels=batch["labels"].to(device),
         )
 
-        if step_idx % 5 == 0:
+        if step_idx % 10 == 0:
             accuracy = model.get_accuracy(
                 logits=logits,
                 sequence_lengths=batch["sequence_lengths"],
