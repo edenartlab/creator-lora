@@ -1,6 +1,6 @@
 *Given a single user's activity, can we predict what he is going to do next?*
 
-Imagine that we have a user named bob in our app. Bob likes image 1 and dislikes image 2. Given an unseen image 3, we want to know the probability of bob liking it.
+Imagine that we have a user named bob in our app. Bob likes image 1 and dislikes image 2. We want to know the probability of bob hitting the like button when he sees image 3.
 
 Our approach is to train a transformer model which takes a sequence of image embeddings and corresponding "activity tokens" as input and tries to predict the next "activity token". Activity tokens can be anything: `<like>, <dislike>, <zoom>, <bookmark> etc`
 
