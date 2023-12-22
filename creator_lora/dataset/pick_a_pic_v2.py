@@ -166,27 +166,16 @@ class UserContextDataset:
         pick_a_pic_v2_subset_dataset_indices = []
 
         for item in single_user_data:
-            """
-            for now, we take only the first instance of the image if it's repeated
-            """
 
-            if item["image_0_uid"] not in image_uids:
-                images.append(item["image_0"])
-                labels.append(item["label_0"])
-                image_uids.append(item["image_0_uid"])
+            images.append(item["image_0"])
+            labels.append(item["label_0"])
+            image_uids.append(item["image_0_uid"])
 
-            if item["image_1_uid"] not in image_uids:
-                images.append(item["image_1"])
-                labels.append(item["label_1"])
-                image_uids.append(item["image_1_uid"])
+            images.append(item["image_1"])
+            labels.append(item["label_1"])
+            image_uids.append(item["image_1_uid"])
 
             pick_a_pic_v2_subset_dataset_indices.append(item["dataset_index"])
-
-        num_occurrences_of_image_uids = dict(Counter(image_uids))
-        for num_occ in num_occurrences_of_image_uids.values():
-            assert (
-                num_occ < 2
-            ), "Images should not be repeated for a single user in a single context"
 
         data = {
             "sequence_length": len(images),
@@ -196,6 +185,10 @@ class UserContextDataset:
             "image_uids": image_uids,
             # "pick_a_pic_v2_subset_dataset_indices": pick_a_pic_v2_subset_dataset_indices,
         }
+
+        # set neutral labels to 1
+        data["labels"] = torch.tensor(data["labels"])
+        data["labels"][data["labels"] == 0.5] = 1.
         return data
 
     def __len__(self):
@@ -215,9 +208,6 @@ class UserContextCLIPEmbeddingsDataset:
 
     def __getitem__(self, idx) -> dict:
         data = self.user_context_dataset[idx]
-        data["labels"] = torch.tensor(data["labels"])
-        # set neutral labels to 1
-        data["labels"][data["labels"] == 0.5] = 1.
         data["labels"] = data["labels"].long()
         
         image_embeddings = []
