@@ -163,7 +163,6 @@ class UserContextDataset:
         images = []
         labels = []
         image_uids = []
-        pick_a_pic_v2_subset_dataset_indices = []
 
         for item in single_user_data:
 
@@ -175,7 +174,6 @@ class UserContextDataset:
             labels.append(item["label_1"])
             image_uids.append(item["image_1_uid"])
 
-            pick_a_pic_v2_subset_dataset_indices.append(item["dataset_index"])
 
         data = {
             "sequence_length": len(images),
@@ -183,7 +181,6 @@ class UserContextDataset:
             "labels": labels,
             "user_id": self.user_ids[idx],
             "image_uids": image_uids,
-            # "pick_a_pic_v2_subset_dataset_indices": pick_a_pic_v2_subset_dataset_indices,
         }
 
         # set neutral labels to 1
