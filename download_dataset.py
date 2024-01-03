@@ -1,21 +1,19 @@
-from creator_lora.dataset import (
-    PickAPicV2Subset,
-)
+from creator_lora.dataset.midjourney import prepare_midjourney_dataset
 import os
-from creator_lora.utils import load_json
-parquet_urls = load_json("dataset_urls.json")
+root_folder = "/data/mayukh/midjourney_dataset"
 
-for i in range(0, len(parquet_urls)):
-    parquet_filename = os.path.join("downloaded_dataset", f"{i}.pth")
-    if i == 0:
-        dataset = PickAPicV2Subset.from_url(
-            url=parquet_urls[i].replace("?download=true", ""),
-            parquet_filename=parquet_filename,
-        )
-    else:
-        dataset.append(
-            PickAPicV2Subset.from_url(
-                url=parquet_urls[i].replace("?download=true", ""),
-                parquet_filename=parquet_filename,
-            )
-        )
+images_folder = os.path.join(
+    root_folder,
+    "images"
+)
+
+output_json_file = os.path.join(
+    root_folder,
+    "data.json"
+)
+
+prepare_midjourney_dataset(
+    images_folder=images_folder,
+    output_json_file=output_json_file,
+    max_num_samples=50_000
+)
