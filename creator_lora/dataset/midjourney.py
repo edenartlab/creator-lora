@@ -1,3 +1,4 @@
+import os
 from datasets import load_dataset
 from tqdm import tqdm
 from ..utils.image import load_pil_image, split_pil_image_into_quadrants
@@ -25,12 +26,14 @@ def prepare_midjourney_dataset(
     5. obtain index tuples which map the upscaled image to the non upscaled options image
     6. find out whether the upscaled image matches one of the option images using CLIP similarity (in some cases, they dont)
     7. use CLIP similarity filter the dataset to contain samples which have an options image and a final upscaled image (which was a subset of the options)
-    8. use the aspect ratio of the image to split the "options" image into 4 parts i.e 4 images. Label them as: 0=not upscaled and 1=upscaled
-    9. save fields: username (str), image_filename (str), label (upscaled=1)
+    8. save fields: username (str), image_filename (str), label (upscaled=1), prompt (str)
     """
 
     ## step 1
     dataset.set_format("pandas")
+
+    ## used to name images
+    image_index = 0
 
     ## step 2
     ## num_occurrences_for_each_prompt = {prompt1: num_occurences, ...}
@@ -39,8 +42,9 @@ def prepare_midjourney_dataset(
 
     data = []
 
-    for prompt in tqdm(all_prompts, desc = f"Filtering prompts"):
-
+    pbar = tqdm(len(all_prompts))
+    for prompt in all_prompts:
+        pbar.update(1)
         ## step 3
         if num_occurrences_for_each_prompt[prompt] == 2:
             indices = (dataset["clean_prompts"] == prompt).values.nonzero()[0].tolist()
@@ -58,6 +62,13 @@ def prepare_midjourney_dataset(
                 dataset[indices[0]]["upscaled"].values[0] == False
                 and dataset[indices[1]]["upscaled"].values[0] == True
             )
+
+            ## make sure that its the same user
+            try:
+                assert dataset[indices[0]]["user_name"].values[0] == dataset[indices[1]]["user_name"].values[0]
+            except:
+                print(f'Skipping because of mismatch in username ({dataset[indices[0]]["user_name"].values[0]} != {dataset[indices[1]]["user_name"].values[0]}) even though the prompt is the same: {prompt}')
+                continue
 
             ## step 5
             if dataset[indices[0]]["upscaled"].values[0] == True:
@@ -83,6 +94,28 @@ def prepare_midjourney_dataset(
                 x2 = embeddings[1:, :].to(device),
             ).tolist()
 
-            ## step 6
+            ## step 6 and step 7
             if max(cosine_similarities) >= clip_similarity_threshold:
                 index_of_matching_image_in_options =  cosine_similarities.index(max(cosine_similarities))
+                labels = [0 for i in range(len(cosine_similarities))]
+                labels[index_of_matching_image_in_options] = 1
+
+                for image, label in zip(options_pil_images_split, labels):
+                    filename = os.path.join(
+                        images_folder,
+                        f"{image_index}.jpg"
+                    )
+                    image.save(filename)
+                    ## step 8
+                    data.append(
+                        {
+                            "image_filename": filename,
+                            "label": label,
+                            "prompt": dataset[indices[0]]["clean_prompts"].values[0],
+                            "username": dataset[indices[0]]["user_name"].values[0]
+                        }
+                    )
+                    image_index += 1
+                    pbar.set_description(f"Saved: {image_index} images")
+            else:
+                pass
