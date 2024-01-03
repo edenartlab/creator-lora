@@ -2,7 +2,6 @@ import os
 from datasets import load_dataset
 from tqdm import tqdm
 from ..utils.image import load_pil_image, split_pil_image_into_quadrants
-from ..utils.embeddings import get_similarity_matrix
 from ..image_encoders.clip import CLIPImageEncoder
 from ..utils.json_stuff import save_as_json
 import torch.nn.functional as F
@@ -107,7 +106,7 @@ def prepare_midjourney_dataset(
                 for image, label in zip(options_pil_images_split, labels):
                     filename = os.path.join(
                         images_folder,
-                        f"{image_index}.jpg"
+                        f"index_{image_index}_label_{label}.jpg"
                     )
                     image.save(filename)
                     ## step 8
