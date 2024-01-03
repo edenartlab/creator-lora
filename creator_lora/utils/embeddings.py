@@ -1,6 +1,6 @@
 import torch
 
-def get_similarity_matrix(self, a, b, eps=1e-8):
+def get_similarity_matrix(a, b, eps=1e-8):
     """
     finds the cosine similarity matrix between each item of a w.r.t each item of b
     a and b are expected to be 2 dimensional (seq, hidden_dim)
