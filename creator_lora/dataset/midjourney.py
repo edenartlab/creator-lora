@@ -1,10 +1,20 @@
 from datasets import load_dataset
 from tqdm import tqdm
+from ..utils.image import load_pil_image, split_pil_image_into_quadrants
+from ..utils.embeddings import get_similarity_matrix
+from ..image_encoders.clip import CLIPImageEncoder
+import torch.nn.functional as F
 
 def prepare_midjourney_dataset(
-    images_folder: str, output_json_file: str, max_num_samples: int = None
+    images_folder: str, output_json_file: str, max_num_samples: int = None,
+    clip_image_encoder_name =  "ViT-B/32", clip_device = "cuda:3", device = "cuda:2",
+    clip_similarity_threshold: float = 0.98
 ):
     dataset = load_dataset("wanng/midjourney-v5-202304-clean")["train"]
+    clip_image_encoder = CLIPImageEncoder(
+        name = clip_image_encoder_name,
+        device = clip_device
+    )
 
     """
     steps:
@@ -51,26 +61,28 @@ def prepare_midjourney_dataset(
 
             ## step 5
             if dataset[indices[0]]["upscaled"].values[0] == True:
-                upscaled_image_url = dataset[indices[0]]["Attachments"]
-                options_image_url = dataset[indices[1]]["Attachments"]
+                upscaled_image_url = dataset[indices[0]]["Attachments"].values[0]
+                options_image_url = dataset[indices[1]]["Attachments"].values[0]
             else:
-                upscaled_image_url = dataset[indices[1]]["Attachments"]
-                options_image_url = dataset[indices[0]]["Attachments"]
+                upscaled_image_url = dataset[indices[1]]["Attachments"].values[0]
+                options_image_url = dataset[indices[0]]["Attachments"].values[0]
 
+            upscaled_pil_image = load_pil_image(upscaled_image_url)
+            options_pil_image = load_pil_image(options_image_url)
 
-            if dataset[indices[0]]["upscaled"].values[0] == True:
-                data.append(
-                    {
-                        "upscaled": dataset[indices[0]]["Attachments"],
-                        "options": dataset[indices[1]]["Attachments"],
-                        "prompt": dataset[indices[0]]["clean_prompts"]
-                    }
-                )
-            else:
-                data.append(
-                    {
-                        "upscaled": dataset[indices[1]]["Attachments"],
-                        "options": dataset[indices[0]]["Attachments"],
-                        "prompt": dataset[indices[0]]["clean_prompts"]
-                    }
-                )
+            options_pil_images_split = split_pil_image_into_quadrants(
+                image=options_pil_image
+            )
+            embeddings = clip_image_encoder.encode(
+                pil_images=[upscaled_pil_image, *options_pil_images_split],
+                batch_size = 4,
+                progress = False
+            )
+            cosine_similarities = F.cosine_similarity(
+                x1 = embeddings[0, :].unsqueeze(0).to(device),
+                x2 = embeddings[1:, :].to(device),
+            ).tolist()
+
+            ## step 6
+            if max(cosine_similarities) >= clip_similarity_threshold:
+                index_of_matching_image_in_options =  cosine_similarities.index(max(cosine_similarities))
