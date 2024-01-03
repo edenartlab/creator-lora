@@ -81,8 +81,12 @@ def prepare_midjourney_dataset(
                 upscaled_image_url = dataset[indices[1]]["Attachments"].values[0]
                 options_image_url = dataset[indices[0]]["Attachments"].values[0]
 
-            upscaled_pil_image = load_pil_image(upscaled_image_url)
-            options_pil_image = load_pil_image(options_image_url)
+            try:
+                upscaled_pil_image = load_pil_image(upscaled_image_url)
+                options_pil_image = load_pil_image(options_image_url)
+            except:
+                print(f"Skipping because: could not retrieve image(s) from url")
+                continue
 
             options_pil_images_split = split_pil_image_into_quadrants(
                 image=options_pil_image
