@@ -4,10 +4,11 @@ from tqdm import tqdm
 from ..utils.image import load_pil_image, split_pil_image_into_quadrants
 from ..utils.embeddings import get_similarity_matrix
 from ..image_encoders.clip import CLIPImageEncoder
+from ..utils.json_stuff import save_as_json
 import torch.nn.functional as F
 
 def prepare_midjourney_dataset(
-    images_folder: str, output_json_file: str, max_num_samples: int = None,
+    images_folder: str, output_json_file: str, max_num_samples: int = 100,
     clip_image_encoder_name =  "ViT-B/32", clip_device = "cuda:3", device = "cuda:2",
     clip_similarity_threshold: float = 0.98
 ):
@@ -44,6 +45,9 @@ def prepare_midjourney_dataset(
 
     pbar = tqdm(len(all_prompts))
     for prompt in all_prompts:
+        if image_index >= max_num_samples:
+            print(f"Already saved max_num_samples: {max_num_samples} images.")
+            break
         pbar.update(1)
         ## step 3
         if num_occurrences_for_each_prompt[prompt] == 2:
@@ -119,3 +123,8 @@ def prepare_midjourney_dataset(
                     pbar.set_description(f"Saved: {image_index} images")
             else:
                 pass
+
+    save_as_json(
+        data,
+        filename = output_json_file
+    )
