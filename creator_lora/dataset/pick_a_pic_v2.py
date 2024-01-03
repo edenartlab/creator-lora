@@ -174,18 +174,41 @@ class UserContextDataset:
             labels.append(item["label_1"])
             image_uids.append(item["image_1_uid"])
 
+        image_uids = np.array(image_uids)
+        labels = np.array(labels)
+
+        # set neutral labels to 1.
+        labels[labels == 0.5] = 1.
+        """
+        todos:
+        1. list down image uids
+        2. list down unique image uids
+        3. for each unique image uid, find number of times it was accepted
+        4. use that number as the label
+        """
+
+        ## 2. list down unique image uids
+        unique_image_uids = np.unique(image_uids)
+        num_accepts_for_all_unique_image_uids = []
+        images_for_all_unique_image_uids = []
+
+        for unique_image_uid in unique_image_uids:
+            labels_for_unique_image_uid = labels[image_uids == unique_image_uid]
+            num_accepts_for_unique_image_uid = labels_for_unique_image_uid.sum()
+            num_accepts_for_all_unique_image_uids.append(num_accepts_for_unique_image_uid)
+
+            images_for_all_unique_image_uids.append(
+                images[(image_uids == unique_image_uid).nonzero()[0][0]]
+            )
 
         data = {
-            "sequence_length": len(images),
-            "images": images,
-            "labels": labels,
+            "sequence_length": len(unique_image_uids),
+            "images": images_for_all_unique_image_uids,
+            "labels": num_accepts_for_all_unique_image_uids,
             "user_id": self.user_ids[idx],
-            "image_uids": image_uids,
+            "image_uids": unique_image_uids,
         }
 
-        # set neutral labels to 1
-        data["labels"] = torch.tensor(data["labels"])
-        data["labels"][data["labels"] == 0.5] = 1.
         return data
 
     def __len__(self):
@@ -205,7 +228,6 @@ class UserContextCLIPEmbeddingsDataset:
 
     def __getitem__(self, idx) -> dict:
         data = self.user_context_dataset[idx]
-        data["labels"] = data["labels"].long()
         
         image_embeddings = []
         for uid in data["image_uids"]:
