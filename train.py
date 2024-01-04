@@ -1,140 +1,117 @@
-from creator_lora.dataset import (
-    PickAPicV2Subset,
-    UserContextDataset,
-    UserContextCLIPEmbeddingsDataset,
-)
 import os
-from creator_lora.dataset import CLIPEmbeddingsDataset
-from torch.utils.data import DataLoader
-from creator_lora.models.gpt import GPT
 import torch
 from tqdm import tqdm
+import torch.nn as nn
+import torchvision.models as models
+import torchvision.transforms as transforms
+from lightning.pytorch import seed_everything
+from creator_lora.dataset import MidJourneyDataset
+from creator_lora.utils.json_stuff import load_json, save_as_json
+from torch.utils.data import DataLoader
+from torch.utils.data import WeightedRandomSampler
 
-device = "cuda:0"
+seed_everything(0)
 
-for i in tqdm(range(0, 55), desc = "Loading data"):
-    parquet_filename = os.path.join("downloaded_dataset", f"{i}.pth")
-    if i == 0:
-        dataset = PickAPicV2Subset(
-            parquet_filename=parquet_filename,
-        )
-    else:
-        dataset.append(
-            PickAPicV2Subset(
-                parquet_filename=parquet_filename,
-            )
-        )
+config = load_json("config.json")
 
-user_context_dataset = UserContextDataset(pick_a_pic_v2_subset=dataset)
-
-image_embeddings_folder = "./clip_embeddings"
-
-full_dataset = UserContextCLIPEmbeddingsDataset(
-    user_context_dataset=user_context_dataset,
-    clip_embeddings=CLIPEmbeddingsDataset.from_folder(
-        folder=image_embeddings_folder,
-    ),
-    shuffle_sequence=True
+images_folder = os.path.join(
+    config["dataset_root_folder"],
+    "images"
 )
-train_test_split = 0.9
-num_train_samples = int(len(full_dataset) * train_test_split)
+
+output_json_file = os.path.join(
+    config["dataset_root_folder"],
+    "data.json"
+)
+dataset = MidJourneyDataset(
+    images_folder=images_folder,
+    output_json_file=output_json_file,
+    image_transform=transforms.Compose(
+        [
+            transforms.Resize((224,224)),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomAffine(degrees = 5, translate=(0.1, 0.1)),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406], 
+                std=[0.229, 0.224, 0.225]
+            )
+        ]
+    )
+)
+
+num_train_samples = int(len(dataset) * config["train_test_split"])
 train_dataset, validation_dataset = torch.utils.data.random_split(
-    full_dataset, 
-    [num_train_samples, len(full_dataset)-num_train_samples],
+    dataset, 
+    [num_train_samples, len(dataset)-num_train_samples],
     generator=torch.Generator().manual_seed(42)
 )
 
 
+if not os.path.exists(config["sampler_weights_filename"]):
+    print(f"Computing sampler_weights...")
+    sampler_weights = [
+        config["class_weights"][train_dataset[i]["label"]] for i in tqdm(range(len(train_dataset)))
+    ]
+    save_as_json(sampler_weights,config["sampler_weights_filename"])
+else:
+    print(f"Loading existing sampler weights: {config['sampler_weights_filename']}")
+    sampler_weights = load_json(config["sampler_weights_filename"])
+
+sampler = WeightedRandomSampler(sampler_weights, len(train_dataset), replacement=True)
+
 train_dataloader = DataLoader(
     train_dataset,
-    batch_size=32,
-    shuffle=True,
-    collate_fn=UserContextCLIPEmbeddingsDataset.collate_fn_with_padding,
+    batch_size=config["batch_size"],
+    shuffle=False,
+    sampler=sampler
 )
 
 validation_dataloader = DataLoader(
     validation_dataset,
-    batch_size=32,
+    batch_size=config["batch_size"],
     shuffle=False,
-    collate_fn=UserContextCLIPEmbeddingsDataset.collate_fn_with_padding,
 )
+from creator_lora.image_encoders import CLIPImageEncoder
 
-# from mingpt import GPT
-model_config = GPT.get_default_config()
-model_config.model_type = None
-model_config.vocab_size = 2 
-model_config.block_size = int(768 * 2)
-model_config.n_layer = 2
-model_config.n_embd = 512
-model_config.n_head = 4
-model = GPT(model_config)
-model.to(device)
+# model = CLIPImageEncoder(name = "RN50", device = config[""])
+model = models.resnet50(weights="DEFAULT")
+model.fc = nn.Linear(2048,1)
+model.to(config["device"])
+loss_function = torch.nn.MSELoss()
 
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-6, weight_decay=1e-6)
+optimizer = torch.optim.SGD(model.parameters(), lr = 1e-3, momentum = 0.5, weight_decay=1e-6)
 
-step_idx = 0
-best_val_acc = -torch.inf
+config["num_gradient_accumulation_steps"] = 4  # Choose the number of batches to accumulate gradients over
 
-for epoch_idx in range(10):
-    for batch in train_dataloader:
+for epoch in range(10):
+    total_loss = 0.0
+    
+    for batch_idx, batch in enumerate(train_dataloader):
         optimizer.zero_grad()
-        logits = model.forward(
-            image_embeddings=batch["image_embeddings"].to(device),
-            labels=batch["labels"].to(device),
-        )
-        loss = model.get_loss(
-            logits=logits,
-            sequence_lengths=batch["sequence_lengths"],
-            labels=batch["labels"].to(device),
-        )
-
-        if step_idx % 10 == 0:
-            accuracy = model.get_accuracy(
-                logits=logits,
-                sequence_lengths=batch["sequence_lengths"],
-                labels=batch["labels"].to(device),
-            )
-            print(f"Step: {step_idx + 1} Epoch: {epoch_idx + 1} Training Loss: {loss.item()} Training Accuracy: {accuracy}")
-
+        logits = model.forward(batch["image"].to(config["device"]))
+        loss = loss_function(logits, batch["label"].to(config["device"]).float().unsqueeze(-1))
         loss.backward()
+        
+        total_loss += loss.item()
+        
+        if (batch_idx + 1) % config["num_gradient_accumulation_steps"] == 0:
+            # Update the model parameters after accumulating gradients for config["num_gradient_accumulation_steps"] batches
+            optimizer.step()
+            optimizer.zero_grad()
+            
+            # Print the average loss over config["num_gradient_accumulation_steps"] batches
+            average_loss = total_loss / config["num_gradient_accumulation_steps"]
+            print(f"Epoch {epoch + 1}, Batch {batch_idx + 1}, Average Loss: {average_loss}")
+            
+            total_loss = 0.0  # Reset the total loss for the next accumulation
+            
+    # If there are remaining batches, update the model parameters
+    if batch_idx % config["num_gradient_accumulation_steps"] != 0:
         optimizer.step()
-        step_idx += 1
-
-    # Validation loop
-    model.eval()  # Set the model to evaluation mode
-    total_val_loss = 0.0
-    total_val_accuracy = 0.0
-    val_batches = 0
-
-    with torch.no_grad():
-        for val_batch in validation_dataloader:
-            val_logits = model.forward(
-                image_embeddings=val_batch["image_embeddings"].to(device),
-                labels=val_batch["labels"].to(device),
-            )
-            val_loss = model.get_loss(
-                logits=val_logits,
-                sequence_lengths=val_batch["sequence_lengths"],
-                labels=val_batch["labels"].to(device),
-            )
-            total_val_loss += val_loss.item()
-
-            val_accuracy = model.get_accuracy(
-                logits=val_logits,
-                sequence_lengths=val_batch["sequence_lengths"],
-                labels=val_batch["labels"].to(device),
-            )
-            total_val_accuracy += val_accuracy
-            val_batches += 1
-
-    average_val_loss = total_val_loss / val_batches
-    average_val_accuracy = total_val_accuracy / val_batches
-
-    print(f"Epoch: {epoch_idx + 1} Validation Loss: {average_val_loss} Validation Accuracy: {average_val_accuracy}")
-
-    if average_val_accuracy > best_val_acc:
-        print(f"Saving model with acc: {average_val_accuracy}")
-        torch.save(model.state_dict(), "best_model.pth")
-        best_val_acc = average_val_accuracy
-
-    model.train()  # Set the model back to training mode
+        optimizer.zero_grad()
+        
+        # Print the average loss for the remaining batches
+        average_loss = total_loss / (batch_idx % config["num_gradient_accumulation_steps"])
+        print(f"Epoch {epoch + 1}, Remaining Batches, Average Loss: {average_loss}")
+    
