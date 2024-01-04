@@ -1,9 +1,10 @@
 import os
 from datasets import load_dataset
 from tqdm import tqdm
+from typing import Callable
 from ..utils.image import load_pil_image, split_pil_image_into_quadrants
 from ..image_encoders.clip import CLIPImageEncoder
-from ..utils.json_stuff import save_as_json
+from ..utils.json_stuff import save_as_json, load_json
 import torch.nn.functional as F
 
 def prepare_midjourney_dataset(
@@ -131,3 +132,30 @@ def prepare_midjourney_dataset(
         data,
         filename = output_json_file
     )
+
+class MidJourneyDataset:
+    def __init__(self, images_folder: str, output_json_file: str, image_transform: Callable = None):
+        assert os.path.exists(images_folder)
+        assert os.path.exists(output_json_file)
+
+        self.data = load_json(
+            filename = output_json_file
+        )
+        self.image_transform=image_transform
+
+    def __getitem__(self, idx: int):
+        item = self.data[idx]
+        image = load_pil_image(item["image_filename"])
+        if self.image_transform is not None:
+            image = self.image_transform(image)
+        else:
+            pass
+        return {
+            "image": image,
+            "label": item["label"],
+            "prompt": item["prompt"],
+            "username": item["username"]
+        }
+
+    def __len__(self):
+        return len(self.data)
