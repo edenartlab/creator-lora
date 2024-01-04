@@ -74,15 +74,17 @@ validation_dataloader = DataLoader(
 )
 from creator_lora.image_encoders import CLIPImageEncoder
 
-# model = CLIPImageEncoder(name = "RN50", device = config[""])
-model = models.resnet50(weights="DEFAULT")
-model.fc = nn.Linear(2048,1)
+model = CLIPImageEncoder(name = "RN50", device = config["device"]).model
+model.attnpool = nn.Sequential(
+    model.attnpool,
+    nn.Linear(1024, 1)
+)
+# model = models.resnet50(weights="DEFAULT")
+# model.fc = nn.Linear(2048,1)
 model.to(config["device"])
 loss_function = torch.nn.MSELoss()
 
-optimizer = torch.optim.SGD(model.parameters(), lr = 1e-3, momentum = 0.5, weight_decay=1e-6)
-
-config["num_gradient_accumulation_steps"] = 4  # Choose the number of batches to accumulate gradients over
+optimizer = torch.optim.SGD(model.attnpool.parameters(), lr = 1e-3, momentum = 0.5, weight_decay=1e-6)
 
 for epoch in range(10):
     total_loss = 0.0
