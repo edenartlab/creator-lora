@@ -10,7 +10,8 @@ import torch.nn.functional as F
 def prepare_midjourney_dataset(
     images_folder: str, output_json_file: str, max_num_samples: int = 100,
     clip_image_encoder_name =  "ViT-B/32", clip_device = "cuda:3", device = "cuda:2",
-    clip_similarity_threshold: float = 0.98
+    clip_similarity_threshold: float = 0.98,
+    resume_from_output_json_file: str = None
 ):
     dataset = load_dataset("wanng/midjourney-v5-202304-clean")["train"]
     clip_image_encoder = CLIPImageEncoder(
@@ -36,15 +37,33 @@ def prepare_midjourney_dataset(
     ## used to name images
     image_index = 0
 
+    ## used to point to prompt or to resume download
+
+    if resume_from_output_json_file is None:
+        prompt_index = -1
+        data = []
+    else:
+        data = load_json(resume_from_output_json_file)
+        
     ## step 2
     ## num_occurrences_for_each_prompt = {prompt1: num_occurences, ...}
     num_occurrences_for_each_prompt = dataset["clean_prompts"].value_counts().to_dict()
     all_prompts = list(num_occurrences_for_each_prompt.keys())
 
-    data = []
+    if resume_from_output_json_file is not None:
+        last_prompt = data[-1]["prompt"]
+        print(f"Last prompt index: {all_prompts.index(last_prompt)}")
+        last_prompt_index = all_prompts.index(last_prompt)
+        all_prompts = all_prompts[last_prompt_index:]
+        image_index = len(data)
+        prompt_index = last_prompt_index + 1
+        print(f" Resuming download from last_prompt_index: {last_prompt_index} and image_index: {image_index}")
 
     pbar = tqdm(len(all_prompts))
     for prompt in all_prompts:
+        prompt_index += 1
+        ## prompt_index becomes 0 on first iter
+
         if image_index >= max_num_samples:
             print(f"Already saved max_num_samples: {max_num_samples} images.")
             break
@@ -120,7 +139,7 @@ def prepare_midjourney_dataset(
                             "image_filename": filename,
                             "label": label,
                             "prompt": dataset[indices[0]]["clean_prompts"].values[0],
-                            "username": dataset[indices[0]]["user_name"].values[0]
+                            "username": dataset[indices[0]]["user_name"].values[0],
                         }
                     )
                     image_index += 1
