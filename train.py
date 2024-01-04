@@ -81,14 +81,49 @@ model.attnpool = nn.Sequential(
 )
 # model = models.resnet50(weights="DEFAULT")
 # model.fc = nn.Linear(2048,1)
+
 model.to(config["device"])
 loss_function = torch.nn.MSELoss()
 
-optimizer = torch.optim.SGD(model.attnpool.parameters(), lr = 1e-3, momentum = 0.5, weight_decay=1e-6)
+optimizer = torch.optim.SGD(
+    [
+        *model.attnpool.parameters(),
+        *model.layer4.parameters()
+    ], 
+    lr = 1e-3, 
+    momentum = 0.5, 
+    weight_decay=1e-6
+)
 
-for epoch in range(10):
+
+def validation_run(config, model, validation_dataloader, epoch: int):
+    # Validation loop
+    model.eval()  # Set the model to evaluation mode
+    with torch.no_grad():
+        total_valid_loss = 0.0
+        correct_predictions = 0
+        total_samples = 0
+
+        for valid_batch in validation_dataloader:
+            logits_valid = model.forward(valid_batch["image"].to(config["device"]))
+            valid_loss = loss_function(logits_valid, valid_batch["label"].to(config["device"]).float().unsqueeze(-1))
+            
+            total_valid_loss += valid_loss.item()
+
+            # Calculate accuracy
+            predictions = (logits_valid > config["validation_accuracy_threshold"]).float()
+            correct_predictions += (predictions == valid_batch["label"].to(config["device"]).float().unsqueeze(-1)).sum().item()
+            total_samples += valid_batch["label"].size(0)
+
+        # Calculate and print validation loss and accuracy
+        average_valid_loss = total_valid_loss / len(validation_dataloader)
+        accuracy = correct_predictions / total_samples
+        print(f"Epoch {epoch + 1}, Validation Loss: {average_valid_loss}, Accuracy: {accuracy}")
+
+    model.train()  # Set the model back to training mode
+
+def train_one_epoch(config, model, train_dataloader, loss_function, optimizer):
     total_loss = 0.0
-    
     for batch_idx, batch in enumerate(train_dataloader):
         optimizer.zero_grad()
         logits = model.forward(batch["image"].to(config["device"]))
@@ -116,4 +151,12 @@ for epoch in range(10):
         # Print the average loss for the remaining batches
         average_loss = total_loss / (batch_idx % config["num_gradient_accumulation_steps"])
         print(f"Epoch {epoch + 1}, Remaining Batches, Average Loss: {average_loss}")
-    
+
+for epoch in range(10):
+
+    if epoch == 0:
+        validation_run(config=config, model=model, validation_dataloader=validation_dataloader, epoch = epoch)
+
+    train_one_epoch(config=config, model=model, train_dataloader=train_dataloader, loss_function=loss_function, optimizer=optimizer)
+
+    validation_run(config=config, model=model, validation_dataloader=validation_dataloader, epoch=epoch)
