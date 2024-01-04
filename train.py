@@ -41,11 +41,12 @@ dataset = MidJourneyDataset(
 )
 
 num_train_samples = int(len(dataset) * config["train_test_split"])
-train_dataset, validation_dataset = torch.utils.data.random_split(
-    dataset, 
-    [num_train_samples, len(dataset)-num_train_samples],
-    generator=torch.Generator().manual_seed(42)
-)
+
+# Created using indices from 0 to train_size.
+train_dataset = torch.utils.data.Subset(dataset, range(num_train_samples))
+
+# Created using indices from train_size to train_size + test_size.
+validation_dataset = torch.utils.data.Subset(dataset, range(num_train_samples, len(dataset)))
 
 
 if not os.path.exists(config["sampler_weights_filename"]):
