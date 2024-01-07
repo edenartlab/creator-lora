@@ -6,3 +6,5 @@ downloaded_dataset/
 pick_a_pic_images/
 sampler_weights.json
 .wandb/
+.pytest_cache/
+wandb/
