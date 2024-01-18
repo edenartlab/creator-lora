@@ -173,7 +173,8 @@ class MidJourneyDataset:
             "image": image,
             "label": item["label"],
             "prompt": item["prompt"],
-            "username": item["username"]
+            "username": item["username"],
+            "image_filename": item["image_filename"]
         }
 
     def __len__(self):
