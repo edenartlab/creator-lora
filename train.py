@@ -18,19 +18,27 @@ config = load_json("config.json")
 images_folder = os.path.join(config["dataset_root_folder"], "images")
 
 output_json_file = os.path.join(config["dataset_root_folder"], "data.json")
+
+sliced_dataset_info = load_json(output_json_file)[:512]
+save_as_json(sliced_dataset_info, "sliced_dataset_info.json")
+
 dataset = MidJourneyDataset(
     images_folder=images_folder,
-    output_json_file=output_json_file,
+    # output_json_file=output_json_file,
+    output_json_file="sliced_dataset_info.json",
     image_transform=transforms.Compose(
         [
-            transforms.Resize((224, 224)),
+            transforms.Resize((1024, 1024)),
             transforms.RandomHorizontalFlip(p=0.5),
             # transforms.RandomAffine(degrees = 5, translate=(0.1, 0.1)),
             transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.48145466, 0.4578275, 0.40821073],
-                std=[0.26862954, 0.26130258, 0.27577711],
-            ),
+            # transforms.Normalize(
+            #     mean=[0.48145466, 0.4578275, 0.40821073],
+            #     std=[0.26862954, 0.26130258, 0.27577711],
+            # ),
+             transforms.Normalize(
+                mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+            )
         ]
     ),
 )
@@ -85,7 +93,7 @@ from creator_lora.image_encoders import CLIPImageEncoder
 # )
 
 model = models.resnet50(weights="DEFAULT")
-model.fc = nn.Sequential(nn.Linear(2048, 1), nn.Sigmoid())
+model.fc = nn.Sequential(nn.Linear(2048, 1))
 
 model.to(config["device"])
 
@@ -128,10 +136,10 @@ def loss_function(logits, labels, prompts):
     labels = labels.reshape(-1)
     cross_entropy_label = (labels == 1).nonzero()[0]
 
-    import random
+    # import random
 
-    if random.random() < 0.01:
-        print(logits)
+    # if random.random() < 0.01:
+    #     print(logits)
     return nn.CrossEntropyLoss()(logits, cross_entropy_label)
 
 
@@ -209,8 +217,8 @@ def train_one_epoch(config, model, train_dataloader, loss_function, optimizer):
 
             if config["wandb_log"]:
                 wandb.log({"training_loss": average_loss})
-
-            # print(f"Epoch {epoch + 1}, Batch {batch_idx + 1}, Average Loss: {average_loss}")
+            else:
+                print(f"Epoch {epoch + 1}, Batch {batch_idx + 1}, Average Loss: {average_loss}")
 
             total_loss = 0.0  # Reset the total loss for the next accumulation
 
@@ -233,13 +241,13 @@ if config["wandb_log"]:
     wandb.init(project="eden-creator-lora", config=config)
 
 for epoch in range(10):
-    if epoch == 0:
-        validation_run(
-            config=config,
-            model=model,
-            validation_dataloader=validation_dataloader,
-            epoch=epoch,
-        )
+    # if epoch == 0:
+    #     validation_run(
+    #         config=config,
+    #         model=model,
+    #         validation_dataloader=validation_dataloader,
+    #         epoch=epoch,
+    #     )
 
     train_one_epoch(
         config=config,
