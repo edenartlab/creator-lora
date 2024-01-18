@@ -21,7 +21,7 @@ output_json_file = os.path.join(
 prepare_midjourney_dataset(
     images_folder=images_folder,
     output_json_file=output_json_file,
-    max_num_samples=50_000,
+    max_num_samples=200_000,
     clip_image_encoder_name="ViT-B/32",
     clip_device="cuda:3",
     device="cuda:2",
