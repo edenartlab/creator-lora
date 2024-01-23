@@ -41,7 +41,7 @@ class CLIPImageEncoder:
         self.device = device
 
     @torch.no_grad()
-    def encode(self, pil_images: List[Image], batch_size: int, progress=True):
+    def encode(self, pil_images, batch_size: int, progress=True):
         """
         obtain embeddings from a list of pil images
         """
