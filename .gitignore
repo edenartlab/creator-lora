@@ -8,3 +8,5 @@ sampler_weights.json
 .wandb/
 .pytest_cache/
 wandb/
+eden-prod.creations_deleted_private.json
+eden-prod.reactions.json
