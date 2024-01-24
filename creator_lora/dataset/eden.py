@@ -114,9 +114,17 @@ def build_eden_dataset(
 class EdenDataset:
     def __init__(self, filename: str):
         self.data = load_json(filename)
+        self.labels_map = {
+            "praise": 1,
+            "delete": 0
+        }
 
     def __len__(self):
         return len(self.data["user"])
+
+    def get_label_from_activity(self, activity: str):
+        assert activity in list(self.labels_map.keys())
+        return self.labels_map[activity]
 
     def __getitem__(self, idx: int):
         image_filename = self.data["filename"][idx]
@@ -124,9 +132,6 @@ class EdenDataset:
 
         return {
             "user": self.data["user"][idx] ,
-            "filename": self.data["filename"][idx],
-            "data_type": self.data["data_type"][idx] ,
-            "activity": self.data["activity"][idx] ,
-            "url": self.data["url"][idx],
-            "image": Image.open(image_filename)
+            "image": Image.open(image_filename),
+            "label": self.get_label_from_activity(self.data["activity"][idx])
         }
