@@ -81,7 +81,8 @@ def build_eden_dataset(
     creations_data_path: str,
     reactions_data_path: str,
     images_folder: str,  ## all images would be downloaded here
-    output_filename: str ## would contain the final_dataset json
+    output_filename: str, ## would contain the final_dataset json,
+    max_num_samples: int = None
 ):
     parsed_dataset = parse_user_data(
         creations_data_path=creations_data_path,
@@ -106,6 +107,14 @@ def build_eden_dataset(
                 filename = image_filename
             )
         parsed_dataset["filename"][dataset_idx] = image_filename
+        if max_num_samples is not None:
+            if dataset_idx == max_num_samples - 1:
+                print(f"Reached max_num_samples: {max_num_samples}")
+                break
+
+    if max_num_samples is not None:
+        for key in parsed_dataset:
+            parsed_dataset[key]=parsed_dataset[key][:max_num_samples]
 
     save_as_json(
         parsed_dataset,
