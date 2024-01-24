@@ -112,12 +112,13 @@ def build_eden_dataset(
     )
 
 class EdenDataset:
-    def __init__(self, filename: str):
+    def __init__(self, filename: str, image_transform: callable = None):
         self.data = load_json(filename)
         self.labels_map = {
             "praise": 1,
             "delete": 0
         }
+        self.image_transform=image_transform
 
     def __len__(self):
         return len(self.data["user"])
@@ -129,9 +130,13 @@ class EdenDataset:
     def __getitem__(self, idx: int):
         image_filename = self.data["filename"][idx]
         assert os.path.exists(image_filename), f"Invalid image path: {image_filename}"
+        image = Image.open(image_filename)
+
+        if self.image_transform is not None:
+            image = self.image_transform(image)
 
         return {
             "user": self.data["user"][idx] ,
-            "image": Image.open(image_filename),
+            "image": image,
             "label": self.get_label_from_activity(self.data["activity"][idx])
         }
