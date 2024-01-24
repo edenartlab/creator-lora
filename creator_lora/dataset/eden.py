@@ -3,6 +3,7 @@ import pandas as pd
 from tqdm import tqdm
 import wget
 import time
+from PIL import Image
 from ..utils.json_stuff import load_json, save_as_json
 
 def convert_oid_to_string_in_df(df):
@@ -118,10 +119,14 @@ class EdenDataset:
         return len(self.data["user"])
 
     def __getitem__(self, idx: int):
+        image_filename = self.data["filename"][idx]
+        assert os.path.exists(image_filename), f"Invalid image path: {image_filename}"
+
         return {
             "user": self.data["user"][idx] ,
             "filename": self.data["filename"][idx],
             "data_type": self.data["data_type"][idx] ,
             "activity": self.data["activity"][idx] ,
-            "url": self.data["url"][idx] 
+            "url": self.data["url"][idx],
+            "image": Image.open(image_filename)
         }
