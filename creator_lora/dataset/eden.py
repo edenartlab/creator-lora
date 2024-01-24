@@ -66,11 +66,17 @@ def parse_user_data(
 
     return final_dataset
 
-def download_image(url, filename):
-    pil_image = load_pil_image(
-        path_or_url=url
-    )
-    pil_image.save(filename)
+def download_with_retries(url, filename, max_retries=10):
+    for attempt in range(1, max_retries + 1):
+        try:
+            # Download the image using wget
+            wget.download(url, filename)
+            return  # Exit the loop if download is successful
+        except Exception as e:
+            print(f"\nError downloading on attempt {attempt}: {e}")
+            time.sleep(1)  # Wait for 1 second before retrying
+
+    print(f"\nFailed to download after {max_retries} attempts")
 
 def build_eden_dataset(
     creations_data_path: str,
@@ -94,10 +100,12 @@ def build_eden_dataset(
         image_filename = os.path.join(
             images_folder, f"{dataset_idx}.jpg"
         )
-        download_image(
-            url = url,
-            filename = image_filename
-        )
+
+        if os.path.exists(image_filename) is not True:
+            download_with_retries(
+                url = url,
+                filename = image_filename
+            )
         parsed_dataset["filename"][dataset_idx] = image_filename
 
     save_as_json(
