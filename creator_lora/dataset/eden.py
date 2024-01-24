@@ -1,9 +1,9 @@
 import os
 import pandas as pd
-import numpy as np
 from tqdm import tqdm
+import wget
+import time
 from ..utils.json_stuff import load_json, save_as_json
-from ..utils.image import load_pil_image
 
 def convert_oid_to_string_in_df(df):
     df.user = [x["$oid"] for x in df.user.values]
@@ -32,15 +32,12 @@ def parse_user_data(
     reaction_unique_users = reaction_df.user.unique()
     common_users = [x for x in deletion_unique_users if x in reaction_unique_users]
 
+    ## keep only image reactions and remove video reactions
+    reaction_df = reaction_df[reaction_df.creationUri.str.endswith("jpg")]
+
     ## filter both dfs by common users
     reaction_df = reaction_df[reaction_df["user"].isin(common_users)]
     deletion_df = deletion_df[deletion_df["user"].isin(common_users)]
-    reaction_df.shape, deletion_df.shape
-
-    num_video_reactions = reaction_df.creationUri.str.endswith("mp4").values.astype(np.uint8).sum()
-    num_image_reactions = reaction_df.creationUri.str.endswith("jpg").values.astype(np.uint8).sum()
-
-    print(f'num_video_reactions: {num_video_reactions}', f'num_image_reactions: {num_image_reactions}')
 
     final_dataset = {
         "user": [],
@@ -112,3 +109,19 @@ def build_eden_dataset(
         parsed_dataset,
         output_filename
     )
+
+class EdenDataset:
+    def __init__(self, filename: str):
+        self.data = load_json(filename)
+
+    def __len__(self):
+        return len(self.data["user"])
+
+    def __getitem__(self, idx: int):
+        return {
+            "user": self.data["user"][idx] ,
+            "filename": self.data["filename"][idx],
+            "data_type": self.data["data_type"][idx] ,
+            "activity": self.data["activity"][idx] ,
+            "url": self.data["url"][idx] 
+        }
