@@ -35,6 +35,7 @@ def parse_user_data(
 
     ## keep only image reactions and remove video reactions
     reaction_df = reaction_df[reaction_df.creationUri.str.endswith("jpg")]
+    deletion_df = deletion_df[deletion_df.creationUri.str.endswith("jpg")]
 
     ## filter both dfs by common users
     reaction_df = reaction_df[reaction_df["user"].isin(common_users)]
