@@ -1,11 +1,9 @@
 {
-    "dataset_root_folder": "/data/mayukh/midjourney_dataset",
+    "dataset_filename": "/data/mayukh/eden_dataset/data.json",
     "train_test_split": 0.75,
     "batch_size": 4,
-    "class_weights": [0.25, 0.75],
     "sampler_weights_filename": "sampler_weights.json",
     "device": "cuda:3",
     "num_gradient_accumulation_steps": 16,
-    "validation_accuracy_threshold": 0.5,
     "wandb_log": false
 }
