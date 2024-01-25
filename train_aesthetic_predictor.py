@@ -92,7 +92,7 @@ def loss_function(logits, labels):
     return nn.MSELoss()(logits, labels)
 
 
-def validation_run(config, model, validation_dataloader, epoch: int):
+def validation_run(config, model, validation_dataloader, epoch: int, loss_function: callable):
     # Validation loop
     model.eval()  # Set the model to evaluation mode
     with torch.no_grad():
@@ -187,6 +187,7 @@ for epoch in range(10):
             config=config,
             model=model,
             validation_dataloader=validation_dataloader,
+            loss_function=loss_function,
             epoch=epoch,
         )
 
@@ -202,5 +203,6 @@ for epoch in range(10):
         config=config,
         model=model,
         validation_dataloader=validation_dataloader,
+        loss_function=loss_function,
         epoch=epoch,
     )
