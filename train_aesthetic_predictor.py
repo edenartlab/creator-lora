@@ -7,7 +7,7 @@ from torch.utils.data import WeightedRandomSampler
 from torch.utils.data import DataLoader
 
 from creator_lora.dataset.eden import EdenDataset
-from creator_lora.image_encoders.clip import CLIPImageEncoder
+import torchvision.models as models
 from creator_lora.utils.json_stuff import load_json, save_as_json
 from creator_lora.utils.sampler_weights import compute_sampler_weights
 
@@ -21,19 +21,19 @@ dataset = EdenDataset(
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.ToTensor(),
             transforms.Normalize(
-                mean=[0.48145466, 0.4578275, 0.40821073],
-                std=[0.26862954, 0.26130258, 0.27577711],
-            ),
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            )
         ]
     ),
 )
 
 dataset.shuffle(seed=0)
 
-model = CLIPImageEncoder(name = "RN50", device = config["device"]).model
-model.attnpool = nn.Sequential(
-    model.attnpool,
-    nn.Linear(1024, 512),
+
+model = models.resnet50(weights="DEFAULT")
+model.fc = nn.Sequential(
+    nn.Linear(2048, 512),
     nn.LeakyReLU(),
     nn.Linear(512, 256),
     nn.LeakyReLU(),
@@ -84,7 +84,7 @@ validation_dataloader = DataLoader(
 )
 
 optimizer = torch.optim.Adam(
-    model.attnpool[1].parameters(),
+    model.fc.parameters(),
     lr=config['lr'],
 )
 
