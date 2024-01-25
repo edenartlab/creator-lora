@@ -1,9 +1,10 @@
 {
     "dataset_filename": "/data/mayukh/eden_dataset/data.json",
     "train_test_split": 0.75,
-    "batch_size": 4,
+    "batch_size": 64,
+    "lr": 0.001,
     "sampler_weights_filename": "sampler_weights.json",
-    "device": "cuda:3",
-    "num_gradient_accumulation_steps": 16,
-    "wandb_log": false
+    "device": "cuda:1",
+    "num_gradient_accumulation_steps": 1,
+    "wandb_log": true
 }
