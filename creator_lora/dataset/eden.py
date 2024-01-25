@@ -4,6 +4,7 @@ from tqdm import tqdm
 import wget
 import time
 from PIL import Image
+import random
 from ..utils.json_stuff import load_json, save_as_json
 
 def convert_oid_to_string_in_df(df):
@@ -129,6 +130,11 @@ class EdenDataset:
             "delete": 0
         }
         self.image_transform=image_transform
+        self.indices = list(range(len(self.data["user"])))
+
+    def shuffle(self, seed = 0):
+        random.seed(seed)
+        random.shuffle(self.indices)
 
     def __len__(self):
         return len(self.data["user"])
@@ -138,6 +144,7 @@ class EdenDataset:
         return self.labels_map[activity]
 
     def __getitem__(self, idx: int):
+        idx = self.indices[idx]
         image_filename = self.data["filename"][idx]
         assert os.path.exists(image_filename), f"Invalid image path: {image_filename}"
         image = Image.open(image_filename)
