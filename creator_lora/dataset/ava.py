@@ -6,6 +6,7 @@ import os
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
+from PIL import Image
 from ..utils.download import download_torrent
 from ..utils.files_and_folders import get_filenames_in_a_folder, extract_7z_multivolume
 
@@ -146,3 +147,31 @@ def build_ava_dataset(
     ava_df["image_filename"] = image_filenames
     ava_df = ava_df[ava_df['image_filename'].notna()]
     return ava_df.to_csv(output_filename)
+
+class AvaDataset:
+    def __init__(self, csv_filename: str, image_transform: callable = None):
+        self.df = pd.read_csv(csv_filename)
+        self.image_transform=image_transform
+
+    def __len__(self):
+        return self.df.shape[0]
+
+    def __getitem__(self, idx: int):
+
+        row = self.df.iloc[idx]
+
+        try:
+            image = Image.open(row.image_filename).convert('RGB')
+        except OSError:
+            """
+            criminal hack to deal with that ONE image which is corrupt
+            """
+            return self.__getitem__(idx+1)
+        
+        if self.image_transform is not None:
+            image = self.image_transform(image)
+
+        return {
+            "image": image,
+            "label": row.rating
+        }
