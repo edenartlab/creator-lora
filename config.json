@@ -2,10 +2,15 @@
     "dataset_filename": "/data/mayukh/eden_dataset/data.json",
     "train_test_split": 0.75,
     "num_epochs": 25,
-    "batch_size": 64,
+    "batch_size": {
+        "train": 64,
+        "validation": 256
+    },
     "lr": 0.001,
     "sampler_weights_filename": "sampler_weights.json",
-    "device": "cuda:1",
+    "device": "cuda:3",
     "num_gradient_accumulation_steps": 4,
-    "wandb_log": true
+    "wandb_log": true,
+    "wandb_project_name": "eden-aesthetic-ava",
+    "checkpoint_filename": "best_model.pth"
 }
