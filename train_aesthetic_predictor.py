@@ -109,10 +109,7 @@ def validation_run(config, model, validation_dataloader, epoch: int, loss_functi
                 logits_valid,
                 valid_batch["label"].to(config["device"]).float().unsqueeze(-1),
             )
-
             total_valid_loss += valid_loss.item()
-
-            
             total_samples += valid_batch["label"].size(0)
 
         # Calculate and print validation loss
@@ -128,6 +125,7 @@ def validation_run(config, model, validation_dataloader, epoch: int, loss_functi
         )
 
     model.train()  # Set the model back to training mode
+    return average_valid_loss
 
 
 def train_one_epoch(config, model, train_dataloader, loss_function, optimizer):
@@ -185,15 +183,18 @@ def train_one_epoch(config, model, train_dataloader, loss_function, optimizer):
 if config["wandb_log"]:
     wandb.init(project=config["wandb_project_name"], config=config)
 
+
+validation_losses = []
 for epoch in range(config["num_epochs"]):
     if epoch == 0:
-        validation_run(
+        loss = validation_run(
             config=config,
             model=model,
             validation_dataloader=validation_dataloader,
             loss_function=loss_function,
             epoch=epoch,
         )
+        validation_losses.append(loss)
 
     train_one_epoch(
         config=config,
@@ -203,10 +204,17 @@ for epoch in range(config["num_epochs"]):
         optimizer=optimizer,
     )
 
-    validation_run(
+    loss = validation_run(
         config=config,
         model=model,
         validation_dataloader=validation_dataloader,
         loss_function=loss_function,
         epoch=epoch,
     )
+    if loss < min(validation_losses):
+        print(f"Best val loss: {loss}")
+        torch.save(
+            model.state_dict(),
+            config["checkpoint_filename"]
+        )
+    validation_losses.append(loss)
