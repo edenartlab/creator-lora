@@ -4,6 +4,8 @@ https://academictorrents.com/details/71631f83b11d3d79d8f84efe0a7e12f0ac001460
 """
 import os
 import pandas as pd
+import numpy as np
+from tqdm import tqdm
 from ..utils.download import download_torrent
 from ..utils.files_and_folders import get_filenames_in_a_folder, extract_7z_multivolume
 
@@ -22,7 +24,7 @@ def download_ava_dataset(
         save_path=download_folder
     )
 
-def assign_column_names(df):
+def assign_column_names(ava_df):
     """
     Column 1: Index
 
@@ -55,13 +57,40 @@ def assign_column_names(df):
         ]
     )
     column_names.append("challenge_id")
-    df.columns = column_names
+    ava_df.columns = column_names
 
-    return df
+    return ava_df
+
+def obtain_mean_rating(ava_df):
+    """
+    the strategy for now is to take the mean rating for each item
+    """
+    ratings_columns = [
+        f"num_ratings_{i}" for i in range(1, 11)
+    ]
+
+    all_num_ratings = [
+        ava_df[column].values.reshape(1, -1) for column in ratings_columns
+    ]
+
+    # all_ratings.shape: ratings (1-10), num_images
+    all_num_ratings = np.concatenate(all_num_ratings, axis = 0)
+
+    rating_values = np.array(
+        range(1, 11)
+    ).reshape(-1,1)
+
+    mean_ratings = (all_num_ratings*rating_values).sum(0) / all_num_ratings.sum(0)    
+    new_data = {
+        "image_id": ava_df.image_id.values.tolist(),
+        "rating": mean_ratings.tolist()
+    }
+    return pd.DataFrame(new_data)
 
 def build_ava_dataset(
     download_folder: str,
-    extract_image_7z_files: bool = False
+    extract_image_7z_files: bool = False,
+    output_filename = "ava_dataset.csv"
 ):
     assert os.path.exists(download_folder)
     ava_txt_file = os.path.join(
@@ -96,5 +125,24 @@ def build_ava_dataset(
         "images"
     )
     ava_df = pd.read_csv(ava_txt_file, delim_whitespace=True, header=None)
-    ava_df = assign_column_names(df = ava_df)
-    print(ava_df)
+    ava_df = assign_column_names(ava_df = ava_df)
+    ava_df = obtain_mean_rating(ava_df)
+    
+    image_ids = ava_df.image_id.values
+    image_filenames = []
+
+    for id in tqdm(image_ids):
+        filename = os.path.join(extracted_images_folder, f"{id}.jpg")
+
+        """
+        only the lord knows why ~19 images are missing
+        """
+        try:
+            assert os.path.exists(filename), f"Invalid filename: {filename}"
+            image_filenames.append(filename)
+        except:
+            image_filenames.append(None)
+        
+    ava_df["image_filename"] = image_filenames
+    ava_df = ava_df[ava_df['image_filename'].notna()]
+    return ava_df.to_csv(output_filename)
