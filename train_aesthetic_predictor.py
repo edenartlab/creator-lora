@@ -62,23 +62,23 @@ validation_dataset = torch.utils.data.Subset(
     dataset, range(num_train_samples, len(dataset))
 )
 
-if not os.path.exists(config["sampler_weights_filename"]):
-    print(f"Computing sampler_weights...")
-    all_train_labels = [
-        train_dataset[idx]["label"] for idx in tqdm(range(len(train_dataset)))
-    ]
-    sampler_weights = compute_sampler_weights(all_train_labels)
-    save_as_json(sampler_weights,config["sampler_weights_filename"])
-else:
-    print(f"Loading existing sampler weights: {config['sampler_weights_filename']}")
-    sampler_weights = load_json(config["sampler_weights_filename"])
+# if not os.path.exists(config["sampler_weights_filename"]):
+#     print(f"Computing sampler_weights...")
+#     all_train_labels = [
+#         train_dataset[idx]["label"] for idx in tqdm(range(len(train_dataset)))
+#     ]
+#     sampler_weights = compute_sampler_weights(all_train_labels)
+#     save_as_json(sampler_weights,config["sampler_weights_filename"])
+# else:
+#     print(f"Loading existing sampler weights: {config['sampler_weights_filename']}")
+#     sampler_weights = load_json(config["sampler_weights_filename"])
 
-sampler = WeightedRandomSampler(sampler_weights, len(train_dataset), replacement=True)
+# sampler = WeightedRandomSampler(sampler_weights, len(train_dataset), replacement=True)
 
 train_dataloader = DataLoader(
     train_dataset,
     batch_size=config["batch_size"]["train"],
-    shuffle=False,
+    shuffle=True,
     # sampler=sampler
 )
 
@@ -221,7 +221,7 @@ for epoch in range(config["num_epochs"]):
         loss_function=loss_function,
         epoch=epoch,
     )
-    if loss < min(validation_losses):
+    if epoch != 0 and loss < min(validation_losses):
         print(f"Best val loss: {loss}")
         torch.save(
             model.state_dict(),
