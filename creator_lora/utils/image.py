@@ -42,3 +42,20 @@ def split_pil_image_into_quadrants(image):
 
     # Return the quadrants as a list
     return [quadrant1, quadrant2, quadrant3, quadrant4]
+
+def crop_center(pil_image):
+    # Get dimensions
+    width, height = pil_image.size
+    new_width = min(width, height)
+    new_height = min(width, height)
+
+    # Calculate cropping coordinates
+    left = (width - new_width) / 2
+    top = (height - new_height) / 2
+    right = (width + new_width) / 2
+    bottom = (height + new_height) / 2
+
+    # Crop the center of the image
+    pil_image = pil_image.crop((left, top, right, bottom))
+
+    return pil_image
