@@ -10,6 +10,7 @@ from creator_lora.dataset.eden import EdenDataset
 import torchvision.models as models
 from creator_lora.utils.json_stuff import load_json, save_as_json
 from creator_lora.utils.sampler_weights import compute_sampler_weights
+from creator_lora.utils.image import crop_center
 
 config = load_json("config.json")
 
@@ -17,6 +18,7 @@ dataset = EdenDataset(
     filename = config["dataset_filename"],
     image_transform=transforms.Compose(
         [
+            crop_center,
             transforms.Resize((224, 224)),
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.ToTensor(),
@@ -35,12 +37,16 @@ model = models.resnet50(weights="DEFAULT")
 model.fc = nn.Sequential(
     nn.Linear(2048, 512),
     nn.LeakyReLU(),
+    nn.Dropout(p=0.5),
     nn.Linear(512, 256),
     nn.LeakyReLU(),
+    nn.Dropout(p=0.5),
     nn.Linear(256, 128),
     nn.LeakyReLU(),
+    nn.Dropout(p=0.5),
     nn.Linear(128, 64),
     nn.LeakyReLU(),
+    nn.Dropout(p=0.5),
     nn.Linear(64, 1),
     nn.Sigmoid()
 )
@@ -181,7 +187,7 @@ def train_one_epoch(config, model, train_dataloader, loss_function, optimizer):
 if config["wandb_log"]:
     wandb.init(project="eden-aesthetic-classifier", config=config)
 
-for epoch in range(10):
+for epoch in range(config["num_epochs"]):
     if epoch == 0:
         validation_run(
             config=config,
