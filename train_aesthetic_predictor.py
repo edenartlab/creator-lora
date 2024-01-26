@@ -5,8 +5,9 @@ import torch.nn as nn
 import torchvision.transforms as transforms
 from torch.utils.data import WeightedRandomSampler
 from torch.utils.data import DataLoader
-
-from creator_lora.dataset.eden import EdenDataset
+from tqdm import tqdm
+# from creator_lora.dataset.eden import EdenDataset
+from creator_lora.dataset.ava import AvaDataset
 import torchvision.models as models
 from creator_lora.utils.json_stuff import load_json, save_as_json
 from creator_lora.utils.sampler_weights import compute_sampler_weights
@@ -14,8 +15,8 @@ from creator_lora.utils.image import crop_center
 
 config = load_json("config.json")
 
-dataset = EdenDataset(
-    filename = config["dataset_filename"],
+dataset = AvaDataset(
+    csv_filename = "ava_dataset.csv", 
     image_transform=transforms.Compose(
         [
             crop_center,
@@ -29,8 +30,6 @@ dataset = EdenDataset(
         ]
     ),
 )
-
-dataset.shuffle(seed=0)
 
 
 model = models.resnet50(weights="DEFAULT")
@@ -48,7 +47,6 @@ model.fc = nn.Sequential(
     nn.LeakyReLU(),
     nn.Dropout(p=0.5),
     nn.Linear(64, 1),
-    nn.Sigmoid()
 )
 model.to(config["device"])
 
@@ -66,7 +64,7 @@ validation_dataset = torch.utils.data.Subset(
 if not os.path.exists(config["sampler_weights_filename"]):
     print(f"Computing sampler_weights...")
     all_train_labels = [
-        train_dataset[idx]["label"] for idx in range(len(train_dataset))
+        train_dataset[idx]["label"] for idx in tqdm(range(len(train_dataset)))
     ]
     sampler_weights = compute_sampler_weights(all_train_labels)
     save_as_json(sampler_weights,config["sampler_weights_filename"])
@@ -78,14 +76,14 @@ sampler = WeightedRandomSampler(sampler_weights, len(train_dataset), replacement
 
 train_dataloader = DataLoader(
     train_dataset,
-    batch_size=config["batch_size"],
+    batch_size=config["batch_size"]["train"],
     shuffle=False,
-    sampler=sampler
+    # sampler=sampler
 )
 
 validation_dataloader = DataLoader(
     validation_dataset,
-    batch_size=config["batch_size"],
+    batch_size=config["batch_size"]["validation"],
     shuffle=False,
 )
 
@@ -105,7 +103,7 @@ def validation_run(config, model, validation_dataloader, epoch: int, loss_functi
         total_valid_loss = 0.0
         total_samples = 0
 
-        for valid_batch in validation_dataloader:
+        for valid_batch in tqdm(validation_dataloader, desc = f"Validation Run"):
             logits_valid = model.forward(valid_batch["image"].to(config["device"]))
             valid_loss = loss_function(
                 logits_valid,
@@ -185,7 +183,7 @@ def train_one_epoch(config, model, train_dataloader, loss_function, optimizer):
 
 
 if config["wandb_log"]:
-    wandb.init(project="eden-aesthetic-classifier", config=config)
+    wandb.init(project=config["wandb_project_name"], config=config)
 
 for epoch in range(config["num_epochs"]):
     if epoch == 0:
