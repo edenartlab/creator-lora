@@ -12,6 +12,7 @@ import torchvision.models as models
 from creator_lora.utils.json_stuff import load_json, save_as_json
 from creator_lora.utils.sampler_weights import compute_sampler_weights
 from creator_lora.utils.image import crop_center
+from creator_lora.utils.optimizer import get_lr
 
 config = load_json("config.json")
 
@@ -92,6 +93,15 @@ optimizer = torch.optim.Adam(
     lr=config['lr'],
 )
 
+## scale down learning rate by gamma after every step_size epochs
+scheduler = torch.optim.lr_scheduler.StepLR(
+    optimizer,
+    step_size=config['scheduler']['step_size'],
+    gamma=config['scheduler']['gamma'],
+    last_epoch=-1, 
+    verbose=False
+)
+
 def loss_function(logits, labels):
     return nn.MSELoss()(logits, labels)
 
@@ -115,7 +125,6 @@ def validation_run(config, model, validation_dataloader, epoch: int, loss_functi
         # Calculate and print validation loss
         average_valid_loss = total_valid_loss / len(validation_dataloader)
 
-
         if config["wandb_log"]:
             wandb.log(
                 {"validation_loss": average_valid_loss}
@@ -127,10 +136,9 @@ def validation_run(config, model, validation_dataloader, epoch: int, loss_functi
     model.train()  # Set the model back to training mode
     return average_valid_loss
 
-
-def train_one_epoch(config, model, train_dataloader, loss_function, optimizer):
+def train_one_epoch(config, model, train_dataloader, loss_function, optimizer, scheduler):
     total_loss = 0.0
-    for batch_idx, batch in enumerate(train_dataloader):
+    for batch_idx, batch in enumerate(tqdm(train_dataloader, desc = "Training Run")):
         optimizer.zero_grad()
         logits = model.forward(batch["image"].to(config["device"]))
 
@@ -140,7 +148,6 @@ def train_one_epoch(config, model, train_dataloader, loss_function, optimizer):
         )
 
         loss.backward()
-
         total_loss += loss.item()
 
         if (batch_idx + 1) % config["num_gradient_accumulation_steps"] == 0:
@@ -155,7 +162,8 @@ def train_one_epoch(config, model, train_dataloader, loss_function, optimizer):
                 wandb.log(
                     {
                         "training_loss": average_loss,
-                        "pred": wandb.Histogram(logits.reshape(-1).tolist())
+                        "pred": wandb.Histogram(logits.reshape(-1).tolist()),
+                        "learning_rate": get_lr(optimizer=optimizer)
 
                     }
                 )
@@ -178,6 +186,7 @@ def train_one_epoch(config, model, train_dataloader, loss_function, optimizer):
         if config["wandb_log"]:
             wandb.log({"training_loss": average_loss})
         # print(f"Epoch {epoch + 1}, Remaining Batches, Average Loss: {average_loss}")
+    scheduler.step()
 
 
 if config["wandb_log"]:
@@ -186,7 +195,7 @@ if config["wandb_log"]:
 
 validation_losses = []
 for epoch in range(config["num_epochs"]):
-    if epoch == 0:
+    if epoch == 0 and config["run_validation_before_first_epoch"]:
         loss = validation_run(
             config=config,
             model=model,
@@ -202,6 +211,7 @@ for epoch in range(config["num_epochs"]):
         train_dataloader=train_dataloader,
         loss_function=loss_function,
         optimizer=optimizer,
+        scheduler=scheduler
     )
 
     loss = validation_run(
