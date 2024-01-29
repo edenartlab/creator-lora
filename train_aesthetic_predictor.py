@@ -3,22 +3,18 @@ import wandb
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
-from torch.utils.data import WeightedRandomSampler
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-# from creator_lora.dataset.eden import EdenDataset
 from creator_lora.dataset.ava import AvaDataset
 import torchvision.models as models
-from creator_lora.utils.json_stuff import load_json, save_as_json
-from creator_lora.utils.sampler_weights import compute_sampler_weights
 from creator_lora.utils.image import crop_center
 from creator_lora.utils.optimizer import get_lr
+from creator_lora.dataset.midjourney import MidJourneyAesthticScoreDataset, MidJourneyDataset
+from creator_lora.dataset.concat import ConcatDataset
 
 config = load_json("config.json")
 
-dataset = AvaDataset(
-    csv_filename = "ava_dataset.csv", 
-    image_transform=transforms.Compose(
+image_transform = transforms.Compose(
         [
             crop_center,
             transforms.Resize((224, 224)),
@@ -29,9 +25,51 @@ dataset = AvaDataset(
                 std=[0.229, 0.224, 0.225]
             )
         ]
-    ),
 )
 
+ava_dataset = AvaDataset(
+    csv_filename = config["dataset"]["ava_dataset_csv_filename"], 
+    image_transform=image_transform
+)
+
+midjourney_dataset = MidJourneyDataset(
+    images_folder=config["dataset"]["midjourney_dataset_images_folder"],
+    output_json_file = config["dataset"]["midjourney_dataset_output_json_file"],
+    image_transform=image_transform
+)
+midjourney_aesthetic_score_dataset = MidJourneyAesthticScoreDataset(
+    midjourney_dataset=midjourney_dataset
+)
+
+dataset = ConcatDataset(
+    datasets = [
+        ava_dataset,
+        midjourney_aesthetic_score_dataset
+    ]
+)
+dataset.shuffle()
+print(f"Length of dataset: {len(dataset)} images")
+
+num_train_samples = int(len(dataset) * config["train_test_split"])
+
+# Created using indices from 0 to train_size.
+train_dataset = torch.utils.data.Subset(dataset, range(num_train_samples))
+# Created using indices from train_size to train_size + test_size.
+validation_dataset = torch.utils.data.Subset(
+    dataset, range(num_train_samples, len(dataset))
+)
+
+train_dataloader = DataLoader(
+    train_dataset,
+    batch_size=config["batch_size"]["train"],
+    shuffle=True,
+)
+
+validation_dataloader = DataLoader(
+    validation_dataset,
+    batch_size=config["batch_size"]["validation"],
+    shuffle=False,
+)
 
 model = models.resnet50(weights="DEFAULT")
 model.fc = nn.Sequential(
@@ -51,45 +89,15 @@ model.fc = nn.Sequential(
 )
 model.to(config["device"])
 
-print(f"Length of dataset: {len(dataset)} images")
-
-num_train_samples = int(len(dataset) * config["train_test_split"])
-
-# Created using indices from 0 to train_size.
-train_dataset = torch.utils.data.Subset(dataset, range(num_train_samples))
-# Created using indices from train_size to train_size + test_size.
-validation_dataset = torch.utils.data.Subset(
-    dataset, range(num_train_samples, len(dataset))
-)
-
-# if not os.path.exists(config["sampler_weights_filename"]):
-#     print(f"Computing sampler_weights...")
-#     all_train_labels = [
-#         train_dataset[idx]["label"] for idx in tqdm(range(len(train_dataset)))
-#     ]
-#     sampler_weights = compute_sampler_weights(all_train_labels)
-#     save_as_json(sampler_weights,config["sampler_weights_filename"])
-# else:
-#     print(f"Loading existing sampler weights: {config['sampler_weights_filename']}")
-#     sampler_weights = load_json(config["sampler_weights_filename"])
-
-# sampler = WeightedRandomSampler(sampler_weights, len(train_dataset), replacement=True)
-
-train_dataloader = DataLoader(
-    train_dataset,
-    batch_size=config["batch_size"]["train"],
-    shuffle=True,
-    # sampler=sampler
-)
-
-validation_dataloader = DataLoader(
-    validation_dataset,
-    batch_size=config["batch_size"]["validation"],
-    shuffle=False,
-)
+if config["params_to_train"] == "all":
+    params_to_train = model.parameters()
+elif config["params_to_train"] == "fc":
+    params_to_train = model.fc.parameters()
+else:
+    raise ValueError(f"Invalid params_to_train: {config['params_to_train']}")
 
 optimizer = torch.optim.Adam(
-    model.fc.parameters(),
+    params_to_train,
     lr=config['lr'],
 )
 
