@@ -9,6 +9,7 @@ from creator_lora.dataset.ava import AvaDataset
 import torchvision.models as models
 from creator_lora.utils.image import crop_center
 from creator_lora.utils.optimizer import get_lr
+from creator_lora.utils.json_stuff import load_json
 from creator_lora.dataset.midjourney import MidJourneyAesthticScoreDataset, MidJourneyDataset
 from creator_lora.dataset.concat import ConcatDataset
 
@@ -45,7 +46,8 @@ dataset = ConcatDataset(
     datasets = [
         ava_dataset,
         midjourney_aesthetic_score_dataset
-    ]
+    ],
+    keys = ["image", "label"]
 )
 dataset.shuffle()
 print(f"Length of dataset: {len(dataset)} images")
@@ -63,6 +65,7 @@ train_dataloader = DataLoader(
     train_dataset,
     batch_size=config["batch_size"]["train"],
     shuffle=True,
+    num_workers=8
 )
 
 validation_dataloader = DataLoader(
