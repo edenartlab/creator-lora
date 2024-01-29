@@ -6,6 +6,7 @@ from ..utils.image import load_pil_image, split_pil_image_into_quadrants
 from ..image_encoders.clip import CLIPImageEncoder
 from ..utils.json_stuff import save_as_json, load_json
 import torch.nn.functional as F
+import random
 
 def prepare_midjourney_dataset(
     images_folder: str, output_json_file: str, max_num_samples: int = 100,
@@ -179,3 +180,26 @@ class MidJourneyDataset:
 
     def __len__(self):
         return len(self.data)
+
+class MidJourneyAesthticScoreDataset:
+    def __init__(self, midjourney_dataset: MidJourneyDataset, score_seed = 0):
+        self.midjourney_dataset = midjourney_dataset
+        random.seed(score_seed)
+
+    def generate_random_score(self, upper: float, lower: float):
+        ## generate a random float between upper and lower
+        random_score = random.uniform(lower, upper)
+        return random_score
+
+    def __len__(self):
+        return len(self.midjourney_dataset)
+
+    def __getitem__(self, idx: int):
+        item = self.midjourney_dataset[idx]
+        if item["label"] == 1:
+            score = self.generate_random_score(upper = 9., lower = 7.)
+        else:
+            score = self.generate_random_score(upper = 8, lower = 7.)
+        item["label"] = score
+
+        return item
