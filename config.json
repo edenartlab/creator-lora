@@ -17,7 +17,7 @@
     },
     "lr": 0.001,
     "device": "cuda:3",
-    "num_gradient_accumulation_steps": 1,
+    "num_gradient_accumulation_steps": 4,
     "wandb_log": false,
     "wandb_project_name": "eden-aesthetic-ava",
     "checkpoint_filename": "best_model.pth",
