@@ -1,6 +1,6 @@
 {
     "dataset": {
-        "ava_dataset_csv_filename": "/data/mayukh/eden_dataset/data.json",
+        "ava_dataset_csv_filename": "ava_dataset.csv",
         "midjourney_dataset_output_json_file": "/data/mayukh/midjourney_dataset/data.json",
         "midjourney_dataset_images_folder": "/data/mayukh/midjourney_dataset/images"
     },
