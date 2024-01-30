@@ -13,3 +13,4 @@ eden-prod.reactions.json
 best_model.pth
 ava_dataset.csv
 preds.json
+output
