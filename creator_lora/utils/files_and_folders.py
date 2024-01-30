@@ -2,6 +2,9 @@ import os
 from py7zr import SevenZipFile
 import multivolumefile
 
+def create_folder_if_it_doesnt_exist(folder: str):
+    os.system(f"mkdir -p {folder}")
+
 def create_new_clean_folder(folder: str):
     os.system(f"mkdir -p {folder}")
     os.system(f"rm {folder}/*")
