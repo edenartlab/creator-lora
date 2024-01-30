@@ -21,5 +21,11 @@
     "wandb_log": true,
     "wandb_project_name": "eden-aesthetic-ava",
     "checkpoint_filename": "best_model.pth",
-    "run_validation_before_first_epoch": true
+    "run_validation_before_first_epoch": true,
+    "eval": {
+        "eden_dataset_filename": "/data/mayukh/eden_dataset/data.json",
+        "eden_images_folder": "/data/mayukh/eden_dataset/images_2/",
+        "batch_size": 128,
+        "preds_filename": "preds.json"
+    }
 }
