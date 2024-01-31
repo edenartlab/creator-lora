@@ -3,6 +3,7 @@ import pexelsPy
 import requests
 from typing import List
 from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor
 from ..utils.json_stuff import save_as_json, load_json
 
 def build_pexels_dataset_json(
@@ -77,10 +78,17 @@ def build_pexels_dataset_json(
         filename = output_json_filename
     )
 
-def download_videos_from_dataset_json(
-    output_json_filename: str,
-    output_folder: str
-):
+def download_video(key, url, video_id, output_folder):
+    filename = os.path.join(output_folder, f"key_{key.replace(' ', '')}_id_{video_id}.mp4")
+    
+    if not os.path.exists(filename):
+        r = requests.get(url)
+        with open(filename, 'wb') as outfile:
+            outfile.write(r.content)
+
+    return filename
+
+def download_videos_from_dataset_json(output_json_filename, output_folder, num_threads=4):
     assert os.path.exists(output_json_filename)
     assert os.path.exists(output_folder)
 
@@ -92,22 +100,16 @@ def download_videos_from_dataset_json(
 
     filenames = []
     print(f"Will download {len(all_urls)} videos")
-    for key, url, id in zip(tqdm(all_keys), all_urls, all_ids):
-        filename = os.path.join(
-            output_folder,
-            f"key_{key.replace(' ', '')}_id_{id}.mp4"
-        )
 
-        if os.path.exists(filename) is False:
-            r = requests.get(url)
-            with open(filename, 'wb') as outfile:
-                outfile.write(r.content)
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+        futures = []
+        for key, url, video_id in zip(all_keys, all_urls, all_ids):
+            future = executor.submit(download_video, key, url, video_id, output_folder)
+            futures.append(future)
 
-        filenames.append(
-            filename
-        )
+        for future, key, url, video_id in zip(tqdm(futures, total=len(all_urls)), all_keys, all_urls, all_ids):
+            filename = future.result()
+            filenames.append(filename)
+
     data["filename"] = filenames
-    save_as_json(
-        data,
-        filename = output_json_filename
-    )
+    save_as_json(data, filename=output_json_filename)
