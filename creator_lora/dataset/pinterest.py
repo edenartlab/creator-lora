@@ -2,6 +2,7 @@ import os
 from tqdm import tqdm
 from pinscrape import pinscrape
 from typing import List
+import time
 from ..utils.json_stuff import save_as_json
 from ..utils.files_and_folders import create_folder_if_it_doesnt_exist, get_filenames_in_a_folder
 
@@ -20,6 +21,7 @@ def build_pinterest_dataset(
     image_keys = []
 
     for key in tqdm(keys):
+        start = time.time()
         try:
             output_folder = os.path.join(
                 download_folder, key.replace(' ', '')
@@ -33,9 +35,10 @@ def build_pinterest_dataset(
                 max_images = max_num_images_per_key
             )
 
+            filenames_in_folder = get_filenames_in_a_folder(output_folder)
             image_urls.extend(details["extracted_urls"])
-            image_filenames.extend(get_filenames_in_a_folder(output_folder))
-            image_keys.extend([key for i in range(len(image_filenames))])
+            image_filenames.extend(filenames_in_folder)
+            image_keys.extend([key for i in range(len(filenames_in_folder))])
 
             for filename in image_filenames:
                 assert os.path.exists(filename), f"Invalid image filename: {filename}"
@@ -49,7 +52,9 @@ def build_pinterest_dataset(
             print(f"Detected keyboard interrupt, stopping download...")
             break
 
-        print(f"Saved {len(image_filenames)} images so far")
+        end = time.time()
+        scraping_speed = len(filenames_in_folder)/(end - start)
+        print(f"Key: {key} Downloaded: {len(filenames_in_folder)} Total: {len(image_filenames)} Speed: {round(scraping_speed, 2)} images/s")
 
     data = {
         "key": image_keys,
