@@ -125,7 +125,7 @@ def build_pixabay_image_dataset(
 
         end = time.time()
         scraping_speed = len(filenames_in_folder) / (end - start)
-        print(f"Scraping speed: {scraping_speed}")
+        print(f"Scraping speed: {scraping_speed} images/second")
 
     data = {"key": image_keys, "filename": image_filenames, "url": image_urls}
     print(f"Total number of images: {len(data['filename'])}")
