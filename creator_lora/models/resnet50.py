@@ -50,7 +50,7 @@ class ResNet50MLP(nn.Module):
         if model_path is not None:
             assert os.path.exists(model_path), f"Invalid model_path: {model_path}"
             print(f"Loading checkpoint: {model_path}")
-            self.load_state_dict(torch.load(model_path))
+            self.load_state_dict(torch.load(model_path, map_location="cpu"))
         self.model.to(device)
         self.device = device
 
