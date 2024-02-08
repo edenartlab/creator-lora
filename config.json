@@ -20,7 +20,7 @@
     "num_gradient_accumulation_steps": 8,
     "wandb_log": true,
     "wandb_project_name": "eden-aesthetic-ava",
-    "checkpoint_filename": "best_model.pth",
+    "checkpoint_filename": "./checkpoints/aesthetic_score_best_model.pth",
     "run_validation_before_first_epoch": true,
     "eval": {
         "eden_dataset_filename": "/data/mayukh/eden_dataset/data.json",
