@@ -14,3 +14,4 @@ best_model.pth
 ava_dataset.csv
 preds.json
 output
+checkpoints/
